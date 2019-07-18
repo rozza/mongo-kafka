@@ -381,9 +381,10 @@ tasks.register<Copy>("prepareConfluentArchive") {
     description = "Prepares the Confluent Archive ready for the hub"
     dependsOn("shadowJar")
 
+    val baseDir = "monogdb-kafka-connect-mongodb-${project.version.toString()}"
     from("config/archive/manifest.json") {
         expand(project.properties)
-        destinationDir = file("$buildDir/confluentArchive")
+        destinationDir = file("$buildDir/confluentArchive/$baseDir")
     }
 
     from("config/archive/assets") {
