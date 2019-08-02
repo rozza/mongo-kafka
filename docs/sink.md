@@ -625,7 +625,7 @@ Then the existing MongoDB document will get updated together with a fresh timest
 
 ### Change Data Capture Mode
 
-#### MongoDB
+#### MongoDB (Prototype!)
 The sink connector can be used to replicate data based on MongoDB Change Stream Events (https://docs.mongodb.com/manual/reference/change-events/). The current implementation supports:
 
 * Insert
