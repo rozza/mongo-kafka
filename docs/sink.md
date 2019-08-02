@@ -658,7 +658,7 @@ value.converter.schemas.enable=false
 change.data.capture.handler=com.mongodb.kafka.connect.sink.cdc.mongodb.operations.MongoDbHandler
 ```
 
-#### Debeezium
+#### Debezium
 The sink connector can also be used in a different operation mode in order to handle change data capture (CDC) events. 
 Currently, the following CDC events from [Debezium](http://debezium.io/) can be processed:
 
