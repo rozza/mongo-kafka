@@ -624,6 +624,41 @@ Then the existing MongoDB document will get updated together with a fresh timest
 ```
 
 ### Change Data Capture Mode
+
+#### MongoDB
+The sink connector can be used to replicate data based on MongoDB Change Stream Events (https://docs.mongodb.com/manual/reference/change-events/). The current implementation supports:
+
+* Insert
+* Update
+* Delete
+* Replace
+
+##### Status of the implementation
+*The current implementation is a prototype of replication via ChangeStreams.* The following points need to be clarified:
+
+* How to handle an initial copy of the data and start the change stream processing at a certain operation time (ChangeStreams allow to start at a certain operation timestamp since 4.0)
+* Handling in case of collection-level operations, like invalidate, drop, etc.
+* Further testing 
+
+##### CDC Handler Configuration
+An example configuration that replicates all changes into a target MongoDB instance:
+```
+name=mongo-replication-sink
+connector.class=com.mongodb.kafka.connect.MongoSinkConnector
+tasks.max=1
+topics=replicate.kafka_source.inventory
+connection.uri=CONNECTION_URI_TO_MONGODB
+database=kafka_sink
+collection=replicate_inventory
+key.converter=org.apache.kafka.connect.json.JsonConverter
+key.converter.schemas.enable=false
+value.converter=org.apache.kafka.connect.json.JsonConverter
+value.converter.schemas.enable=false
+
+change.data.capture.handler=com.mongodb.kafka.connect.sink.cdc.mongodb.operations.MongoDbHandler
+```
+
+#### Debeezium
 The sink connector can also be used in a different operation mode in order to handle change data capture (CDC) events. 
 Currently, the following CDC events from [Debezium](http://debezium.io/) can be processed:
 
