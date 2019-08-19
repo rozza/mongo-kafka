@@ -89,6 +89,37 @@ public class MongoSourceConnectorTest extends MongoKafkaTestCase {
     }
 
     @Test
+    @DisplayName("Ensure source loads data from MongoDB MongoClient with Initial Sync")
+    void testSourceLoadsDataFromMongoClientWithInitialSync() {
+        MongoCollection<Document> coll1 = getDatabase("11").getCollection("coll");
+        MongoCollection<Document> coll2 = getDatabase("21").getCollection("coll");
+        MongoCollection<Document> coll3 = getDatabase("31").getCollection("coll");
+        MongoCollection<Document> coll4 = getDatabase("11").getCollection("db1Coll2");
+
+        insertMany(rangeClosed(1, 50), coll1, coll2);
+
+        Properties sourceProperties = new Properties();
+        sourceProperties.put(MongoSourceConfig.INITIAL_SYNC_CONFIG, "true");
+        addSourceConnector(sourceProperties);
+
+        assertAll(
+                () -> assertProduced(50, coll1),
+                () -> assertProduced(50, coll2),
+                () -> assertProduced(0, coll3));
+
+        getDatabase("11").drop();
+        insertMany(rangeClosed(51, 60), coll2, coll4);
+        insertMany(rangeClosed(1, 70), coll3);
+
+        assertAll(
+                () -> assertProduced(51, coll1),
+                () -> assertProduced(60, coll2),
+                () -> assertProduced(70, coll3),
+                () -> assertProduced(10, coll4)
+        );
+    }
+
+    @Test
     @DisplayName("Ensure source loads data from MongoDB database")
     void testSourceLoadsDataFromDatabase() {
         try (KafkaConsumer<?, ?> consumer = createConsumer()) {
@@ -135,6 +166,53 @@ public class MongoSourceConnectorTest extends MongoKafkaTestCase {
     }
 
     @Test
+    @DisplayName("Ensure source loads data from MongoDB database with Initial Sync")
+    void testSourceLoadsDataFromDatabaseInitialSync() {
+        try (KafkaConsumer<?, ?> consumer = createConsumer()) {
+            Pattern pattern = Pattern.compile(format("^%s.*", getDatabaseName()));
+            consumer.subscribe(pattern);
+
+            MongoDatabase db = getDatabase("41");
+
+            MongoCollection<Document> coll1 = db.getCollection("coll1");
+            MongoCollection<Document> coll2 = db.getCollection("coll2");
+            MongoCollection<Document> coll3 = db.getCollection("coll3");
+
+            insertMany(rangeClosed(1, 50), coll1, coll2);
+
+            Properties sourceProperties = new Properties();
+            sourceProperties.put(MongoSourceConfig.DATABASE_CONFIG, db.getName());
+            sourceProperties.put(MongoSourceConfig.INITIAL_SYNC_CONFIG, "true");
+            addSourceConnector(sourceProperties);
+
+            assertAll(
+                    () -> assertProduced(50, coll1),
+                    () -> assertProduced(50, coll2),
+                    () -> assertProduced(0, coll3)
+            );
+
+            // Update some of the collections
+            coll1.drop();
+            coll2.drop();
+
+            insertMany(rangeClosed(1, 20), coll3);
+
+            String collName4 = "coll4";
+            coll3.renameCollection(new MongoNamespace(getDatabaseName(), collName4));
+            MongoCollection<Document> coll4 = db.getCollection(collName4);
+
+            insertMany(rangeClosed(21, 30), coll4);
+
+            assertAll(
+                    () -> assertProduced(51, coll1),
+                    () -> assertProduced(51, coll2),
+                    () -> assertProduced(21, coll3),
+                    () -> assertProduced(10, coll4)
+            );
+        }
+    }
+
+    @Test
     @DisplayName("Ensure source loads data from collection")
     void testSourceLoadsDataFromCollection() {
         MongoCollection<Document> coll = getDatabase("5").getCollection("coll");
@@ -148,7 +226,29 @@ public class MongoSourceConnectorTest extends MongoKafkaTestCase {
         assertProduced(100, coll);
 
         coll.drop();
+        assertProduced(101, coll);
+    }
+
+    @Test
+    @DisplayName("Ensure source loads data from collection with Initial Sync")
+    void testSourceLoadsDataFromCollectionInitialSync() {
+        MongoCollection<Document> coll = getDatabase("51").getCollection("coll");
+
+        insertMany(rangeClosed(1, 50), coll);
+
+        Properties sourceProperties = new Properties();
+        sourceProperties.put(MongoSourceConfig.DATABASE_CONFIG, coll.getNamespace().getDatabaseName());
+        sourceProperties.put(MongoSourceConfig.COLLECTION_CONFIG, coll.getNamespace().getCollectionName());
+        sourceProperties.put(MongoSourceConfig.INITIAL_SYNC_CONFIG, "true");
+        addSourceConnector(sourceProperties);
+
+        assertProduced(50, coll);
+
+        insertMany(rangeClosed(51, 100), coll);
         assertProduced(100, coll);
+
+        coll.drop();
+        assertProduced(101, coll);
     }
 
     @Test
@@ -156,21 +256,26 @@ public class MongoSourceConnectorTest extends MongoKafkaTestCase {
     void testSourceLoadsDataFromCollectionDocumentOnly() {
         MongoCollection<Document> coll = getDatabase("6").getCollection("coll");
 
+        List<Document> docs = insertMany(rangeClosed(1, 50), coll);
+
         Properties sourceProperties = new Properties();
         sourceProperties.put(MongoSourceConfig.DATABASE_CONFIG, coll.getNamespace().getDatabaseName());
         sourceProperties.put(MongoSourceConfig.COLLECTION_CONFIG, coll.getNamespace().getCollectionName());
         sourceProperties.put(MongoSourceConfig.PUBLISH_FULL_DOCUMENT_ONLY_CONFIG, "true");
+        sourceProperties.put(MongoSourceConfig.INITIAL_SYNC_CONFIG, "true");
         addSourceConnector(sourceProperties);
 
-        List<Document> docs = insertMany(rangeClosed(1, 100), coll);
         assertProduced(docs, coll);
 
+        List<Document> allDocs = new ArrayList<>(docs);
+        allDocs.addAll(insertMany(rangeClosed(51, 100), coll));
+
         coll.drop();
-        assertProduced(docs, coll);
+        assertProduced(allDocs, coll);
     }
 
     private MongoDatabase getDatabase(final String postfix) {
-        return getMongoClient().getDatabase(format("%s%s", getDatabaseName(), postfix));
+        return getMongoClient().getDatabase(format("%s_%s", getDatabaseName(), postfix));
     }
 
     private List<Document> insertMany(final IntStream stream, final MongoCollection<?>... collections) {

@@ -114,8 +114,8 @@ public class MongoKafkaTestCase {
             consumer.subscribe(singletonList(topicName));
             List<Bytes> data = new ArrayList<>();
             int retryCount = 0;
-            while (data.size() < expectedCount && retryCount < 5) {
-                consumer.poll(Duration.ofSeconds(10)).records(topicName).forEach((r) -> data.add((Bytes) r.value()));
+            while (data.size() < expectedCount && retryCount < 30) {
+                consumer.poll(Duration.ofSeconds(2)).records(topicName).forEach((r) -> data.add((Bytes) r.value()));
                 retryCount++;
                 LOGGER.info("Polling {} ({}) seen: #{}", topicName, retryCount, data.size());
             }

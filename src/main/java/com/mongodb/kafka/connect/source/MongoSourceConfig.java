@@ -114,6 +114,18 @@ public class MongoSourceConfig extends AbstractConfig {
             + "watched.";
     private static final String COLLECTION_DEFAULT = "";
 
+    public static final String INITIAL_SYNC_CONFIG = "initial.sync";
+    private static final String INITIAL_SYNC_DISPLAY = "Initial sync";
+    private static final String INITIAL_SYNC_DOC =  "Perform an initial sync first, copying the data from all the collections then adding"
+            + " changes after.";
+    private static final boolean INITIAL_SYNC_DEFAULT = false;
+
+    public static final String INITIAL_SYNC_MAX_THREADS_CONFIG = "initial.sync.max.threads";
+    private static final String INITIAL_SYNC_MAX_THREADS_DISPLAY = "Initial sync max number of threads";
+    private static final String INITIAL_SYNC_MAX_THREADS_DOC =  "The number of threads to use when performing initial sync. "
+            + "Defaults to the number of processors";
+    private static final int INITIAL_SYNC_MAX_THREADS_DEFAULT = Runtime.getRuntime().availableProcessors();
+
     public static final ConfigDef CONFIG = createConfigDef();
     private static final List<Consumer<MongoSourceConfig>> INITIALIZERS = singletonList(MongoSourceConfig::validateCollection);
 
@@ -195,6 +207,26 @@ public class MongoSourceConfig extends AbstractConfig {
                 ++orderInGroup,
                 Width.MEDIUM,
                 CONNECTION_URI_DISPLAY);
+
+        configDef.define(INITIAL_SYNC_CONFIG,
+                Type.BOOLEAN,
+                INITIAL_SYNC_DEFAULT,
+                Importance.MEDIUM,
+                INITIAL_SYNC_DOC,
+                group,
+                ++orderInGroup,
+                Width.MEDIUM,
+                INITIAL_SYNC_DISPLAY);
+
+        configDef.define(INITIAL_SYNC_MAX_THREADS_CONFIG,
+                Type.INT,
+                INITIAL_SYNC_MAX_THREADS_DEFAULT,
+                Importance.MEDIUM,
+                INITIAL_SYNC_MAX_THREADS_DOC,
+                group,
+                ++orderInGroup,
+                Width.MEDIUM,
+                INITIAL_SYNC_MAX_THREADS_DISPLAY);
 
         configDef.define(DATABASE_CONFIG,
                 Type.STRING,
