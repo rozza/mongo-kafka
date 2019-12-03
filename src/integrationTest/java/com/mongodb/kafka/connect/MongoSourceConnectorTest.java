@@ -161,9 +161,10 @@ public class MongoSourceConnectorTest extends MongoKafkaTestCase {
             insertMany(rangeClosed(1, 100), coll);
             assertProduced(100, coll);
 
-            coll.drop();
+            db.drop();
             assertProduced(101, coll);
 
+            Thread.sleep(5000);
             insertMany(rangeClosed(1, 100), coll);
             assertProduced(201, coll);
         }
