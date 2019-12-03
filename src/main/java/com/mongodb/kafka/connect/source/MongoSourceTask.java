@@ -141,7 +141,6 @@ public class MongoSourceTask extends SourceTask {
                 // If the cursor is invalidated add the record and return calls
                 if (changeStreamDocument.getString("operationType", new BsonString("")).getValue().equalsIgnoreCase(INVALIDATE)) {
                     LOGGER.info("Cursor has been invalidated.");
-                    cursor.close();
                     cursor = null;
                     return sourceRecords;
                 } else if (sourceRecords.size() == maxBatchSize) {
