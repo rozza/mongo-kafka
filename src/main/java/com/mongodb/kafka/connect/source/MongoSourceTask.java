@@ -274,6 +274,7 @@ public class MongoSourceTask extends SourceTask {
                         MongoClientSettings.getDefaultCodecRegistry()));
             }
             cachedResumeAfter = firstResult != null ? firstResult.getResumeToken() : changeStreamCursor.getResumeToken();
+            changeStreamCursor.close();
             return true;
         }
         return false;
@@ -316,6 +317,7 @@ public class MongoSourceTask extends SourceTask {
         try {
             return Optional.ofNullable(cursor.tryNext());
         } catch (Exception e) {
+            cursor.close();
             cursor = null;
             return Optional.empty();
         }

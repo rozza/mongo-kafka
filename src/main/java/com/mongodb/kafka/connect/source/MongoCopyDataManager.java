@@ -18,6 +18,7 @@ package com.mongodb.kafka.connect.source;
 import static com.mongodb.kafka.connect.source.MongoSourceConfig.COLLECTION_CONFIG;
 import static com.mongodb.kafka.connect.source.MongoSourceConfig.COPY_EXISTING_MAX_THREADS_CONFIG;
 import static com.mongodb.kafka.connect.source.MongoSourceConfig.DATABASE_CONFIG;
+import static java.lang.String.format;
 import static java.util.Collections.singletonList;
 
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +58,8 @@ import com.mongodb.client.MongoClient;
 class MongoCopyDataManager implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(MongoCopyDataManager.class);
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicBoolean errored = new AtomicBoolean();
+    private volatile String errorMessage;
     private final AtomicInteger namespacesToCopy;
     private final MongoSourceConfig sourceConfig;
     private final MongoClient mongoClient;
@@ -85,6 +89,15 @@ class MongoCopyDataManager implements AutoCloseable {
     }
 
     Optional<BsonDocument> poll() {
+        if (errored.get()) {
+            if (!closed.get()) {
+                LOGGER.error(errorMessage);
+                close();
+                throw new ConnectException(errorMessage);
+            }
+            return Optional.empty();
+        }
+
         if (namespacesToCopy.get() == 0) {
             close();
         }
@@ -99,17 +112,22 @@ class MongoCopyDataManager implements AutoCloseable {
     public void close() {
         if (!closed.getAndSet(true)) {
             LOGGER.debug("Shutting down executors");
-            executor.shutdownNow();
+            executor.shutdown();
         }
     }
 
     private void copyDataFrom(final MongoNamespace namespace) {
         LOGGER.debug("Copying existing data from: {}", namespace.getFullName());
-        mongoClient.getDatabase(namespace.getDatabaseName())
-                .getCollection(namespace.getCollectionName(), BsonDocument.class)
-                .aggregate(createPipeline(namespace))
-                .forEach((Consumer<? super BsonDocument>) queue::add);
-        namespacesToCopy.decrementAndGet();
+        try {
+            mongoClient.getDatabase(namespace.getDatabaseName())
+                    .getCollection(namespace.getCollectionName(), BsonDocument.class)
+                    .aggregate(createPipeline(namespace))
+                    .forEach((Consumer<? super BsonDocument>) queue::add);
+            namespacesToCopy.decrementAndGet();
+        } catch (Exception e) {
+            errored.set(true);
+            errorMessage = format("Error copying data from: %s. '%s'", namespace.getFullName(), e.getMessage());
+        }
     }
 
     private List<Bson> createPipeline(final MongoNamespace namespace) {
