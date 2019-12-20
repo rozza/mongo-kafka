@@ -132,7 +132,7 @@ public class MongoSourceConfig extends AbstractConfig {
 
     public static final String COPY_EXISTING_QUEUE_SIZE_CONFIG = "copy.existing.queue.size";
     private static final String COPY_EXISTING_QUEUE_SIZE_DISPLAY = "Copy existing queue size";
-    private static final String COPY_EXISTING_QUEUE_SIZE_DOC =  "The max size of the queue to use when copying data from a namespace";
+    private static final String COPY_EXISTING_QUEUE_SIZE_DOC =  "The max size of the queue to use when copying data.";
     private static final int COPY_EXISTING_QUEUE_SIZE_DEFAULT = 16000;
 
     public static final ConfigDef CONFIG = createConfigDef();
