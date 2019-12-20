@@ -19,7 +19,6 @@ import static com.mongodb.kafka.connect.source.MongoSourceConfig.COLLECTION_CONF
 import static com.mongodb.kafka.connect.source.MongoSourceConfig.COPY_EXISTING_MAX_THREADS_CONFIG;
 import static com.mongodb.kafka.connect.source.MongoSourceConfig.COPY_EXISTING_QUEUE_SIZE_CONFIG;
 import static com.mongodb.kafka.connect.source.MongoSourceConfig.DATABASE_CONFIG;
-import static java.lang.String.format;
 import static java.util.Collections.singletonList;
 
 import java.util.ArrayList;
@@ -29,7 +28,6 @@ import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -58,9 +56,8 @@ import com.mongodb.client.MongoClient;
  */
 class MongoCopyDataManager implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(MongoCopyDataManager.class);
-    private final AtomicBoolean closed = new AtomicBoolean();
-    private final AtomicBoolean errored = new AtomicBoolean();
-    private volatile String errorMessage;
+    private volatile boolean closed;
+    private volatile Exception errorException;
     private final AtomicInteger namespacesToCopy;
     private final MongoSourceConfig sourceConfig;
     private final MongoClient mongoClient;
@@ -91,13 +88,11 @@ class MongoCopyDataManager implements AutoCloseable {
     }
 
     Optional<BsonDocument> poll() {
-        if (errored.get()) {
-            if (!closed.get()) {
-                LOGGER.error(errorMessage);
+        if (errorException != null) {
+            if (!closed) {
                 close();
-                throw new ConnectException(errorMessage);
             }
-            return Optional.empty();
+            throw new ConnectException(errorException);
         }
 
         if (namespacesToCopy.get() == 0) {
@@ -112,7 +107,8 @@ class MongoCopyDataManager implements AutoCloseable {
 
     @Override
     public void close() {
-        if (!closed.getAndSet(true)) {
+        if (!closed) {
+            closed = true;
             LOGGER.debug("Shutting down executors");
             executor.shutdownNow();
         }
@@ -127,8 +123,7 @@ class MongoCopyDataManager implements AutoCloseable {
                     .forEach((Consumer<? super BsonDocument>) queue::add);
             namespacesToCopy.decrementAndGet();
         } catch (Exception e) {
-            errored.set(true);
-            errorMessage = format("Error copying data from: %s. '%s'", namespace.getFullName(), e.getMessage());
+            errorException = e;
         }
     }
 
