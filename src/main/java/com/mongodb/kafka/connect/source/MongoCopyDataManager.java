@@ -17,6 +17,7 @@ package com.mongodb.kafka.connect.source;
 
 import static com.mongodb.kafka.connect.source.MongoSourceConfig.COLLECTION_CONFIG;
 import static com.mongodb.kafka.connect.source.MongoSourceConfig.COPY_EXISTING_MAX_THREADS_CONFIG;
+import static com.mongodb.kafka.connect.source.MongoSourceConfig.COPY_EXISTING_QUEUE_SIZE_CONFIG;
 import static com.mongodb.kafka.connect.source.MongoSourceConfig.DATABASE_CONFIG;
 import static java.lang.String.format;
 import static java.util.Collections.singletonList;
@@ -25,7 +26,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,7 +65,7 @@ class MongoCopyDataManager implements AutoCloseable {
     private final MongoSourceConfig sourceConfig;
     private final MongoClient mongoClient;
     private final ExecutorService executor;
-    private final ConcurrentLinkedQueue<BsonDocument> queue = new ConcurrentLinkedQueue<>();
+    private final ArrayBlockingQueue<BsonDocument> queue;
 
     MongoCopyDataManager(final MongoSourceConfig sourceConfig, final MongoClient mongoClient) {
         this.sourceConfig = sourceConfig;
@@ -83,6 +84,7 @@ class MongoCopyDataManager implements AutoCloseable {
         }
         LOGGER.info("Copying existing data on the following namespaces: {}", namespaces);
         namespacesToCopy = new AtomicInteger(namespaces.size());
+        queue = new ArrayBlockingQueue<>(sourceConfig.getInt(COPY_EXISTING_QUEUE_SIZE_CONFIG));
         executor = Executors.newFixedThreadPool(
                 Math.min(namespacesToCopy.get(), sourceConfig.getInt(COPY_EXISTING_MAX_THREADS_CONFIG)));
         namespaces.forEach(n -> executor.submit(() -> copyDataFrom(n)));
@@ -112,7 +114,7 @@ class MongoCopyDataManager implements AutoCloseable {
     public void close() {
         if (!closed.getAndSet(true)) {
             LOGGER.debug("Shutting down executors");
-            executor.shutdown();
+            executor.shutdownNow();
         }
     }
 

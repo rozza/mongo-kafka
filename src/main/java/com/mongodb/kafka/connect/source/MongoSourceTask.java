@@ -129,6 +129,7 @@ public class MongoSourceTask extends SourceTask {
 
         mongoClient = MongoClients.create(sourceConfig.getConnectionString(), getMongoDriverInformation());
         if (shouldCopyData()) {
+            setCachedResultAndResumeToken();
             copyDataManager = new MongoCopyDataManager(sourceConfig, mongoClient);
             isCopying.set(true);
         } else {
@@ -258,26 +259,28 @@ public class MongoSourceTask extends SourceTask {
      *
      * <p>
      * Copying data is only required if it's been configured and it hasn't already completed.
-     * This method also is responsible for caching the {@code resumeAfter} value for the change stream.
      * </p>
      *
      * @return true if should copy the existing data.
      */
     private boolean shouldCopyData() {
         Map<String, Object> offset = getOffset(sourceConfig);
-        if (sourceConfig.getBoolean(COPY_EXISTING_CONFIG) && (offset == null || offset.containsKey("copy"))) {
-            MongoChangeStreamCursor<ChangeStreamDocument<Document>> changeStreamCursor =
-                    getChangeStreamIterable(sourceConfig, mongoClient).cursor();
-            ChangeStreamDocument<Document> firstResult = changeStreamCursor.tryNext();
-            if (firstResult != null) {
-                cachedResult = new BsonDocumentWrapper<>(firstResult, ChangeStreamDocument.createCodec(Document.class,
-                        MongoClientSettings.getDefaultCodecRegistry()));
-            }
-            cachedResumeAfter = firstResult != null ? firstResult.getResumeToken() : changeStreamCursor.getResumeToken();
-            changeStreamCursor.close();
-            return true;
+        return sourceConfig.getBoolean(COPY_EXISTING_CONFIG) && (offset == null || offset.containsKey("copy"));
+    }
+
+    /**
+     * This method also is responsible for caching the {@code resumeAfter} value for the change stream.
+     */
+    private void setCachedResultAndResumeToken() {
+        MongoChangeStreamCursor<ChangeStreamDocument<Document>> changeStreamCursor =
+                getChangeStreamIterable(sourceConfig, mongoClient).cursor();
+        ChangeStreamDocument<Document> firstResult = changeStreamCursor.tryNext();
+        if (firstResult != null) {
+            cachedResult = new BsonDocumentWrapper<>(firstResult, ChangeStreamDocument.createCodec(Document.class,
+                    MongoClientSettings.getDefaultCodecRegistry()));
         }
-        return false;
+        cachedResumeAfter = firstResult != null ? firstResult.getResumeToken() : changeStreamCursor.getResumeToken();
+        changeStreamCursor.close();
     }
 
     /**

@@ -130,6 +130,11 @@ public class MongoSourceConfig extends AbstractConfig {
             + "Defaults to the number of processors";
     private static final int COPY_EXISTING_MAX_THREADS_DEFAULT = Runtime.getRuntime().availableProcessors();
 
+    public static final String COPY_EXISTING_QUEUE_SIZE_CONFIG = "copy.existing.queue.size";
+    private static final String COPY_EXISTING_QUEUE_SIZE_DISPLAY = "Copy existing queue size";
+    private static final String COPY_EXISTING_QUEUE_SIZE_DOC =  "The max size of the queue to use when copying data from a namespace";
+    private static final int COPY_EXISTING_QUEUE_SIZE_DEFAULT = 16000;
+
     public static final ConfigDef CONFIG = createConfigDef();
     private static final List<Consumer<MongoSourceConfig>> INITIALIZERS = singletonList(MongoSourceConfig::validateCollection);
 
@@ -231,6 +236,16 @@ public class MongoSourceConfig extends AbstractConfig {
                 ++orderInGroup,
                 Width.MEDIUM,
                 COPY_EXISTING_MAX_THREADS_DISPLAY);
+
+        configDef.define(COPY_EXISTING_QUEUE_SIZE_CONFIG,
+                Type.INT,
+                COPY_EXISTING_QUEUE_SIZE_DEFAULT,
+                Importance.MEDIUM,
+                COPY_EXISTING_QUEUE_SIZE_DOC,
+                group,
+                ++orderInGroup,
+                Width.MEDIUM,
+                COPY_EXISTING_QUEUE_SIZE_DISPLAY);
 
         configDef.define(DATABASE_CONFIG,
                 Type.STRING,
