@@ -20,8 +20,7 @@ package com.mongodb.kafka.connect.sink.cdc.debezium.rdbms.mysql;
 
 import java.util.Map;
 
-import com.mongodb.kafka.connect.sink.MongoSinkTopicConfig;
-import com.mongodb.kafka.connect.sink.cdc.CdcOperation;
+import com.mongodb.kafka.connect.sink.cdc.debezium.CdcOperation;
 import com.mongodb.kafka.connect.sink.cdc.debezium.OperationType;
 import com.mongodb.kafka.connect.sink.cdc.debezium.rdbms.RdbmsHandler;
 
@@ -32,11 +31,11 @@ public class MysqlHandler extends RdbmsHandler {
     //and the CDC handling deviates from the standard
     //behaviour as implemented in RdbmsHandler.class
 
-    public MysqlHandler(final MongoSinkTopicConfig config) {
-        super(config);
+    public MysqlHandler() {
+        super();
     }
 
-    public MysqlHandler(final MongoSinkTopicConfig config, final Map<OperationType, CdcOperation> operations) {
-        super(config, operations);
+    public MysqlHandler(final Map<OperationType, CdcOperation> operations) {
+        super(operations);
     }
 }

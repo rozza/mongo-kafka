@@ -18,36 +18,36 @@
 
 package com.mongodb.kafka.connect.sink.cdc.mongodb;
 
+// https://docs.mongodb.com/manual/reference/change-events/
 public enum OperationType {
 
     INSERT("insert"),
-    UPDATE("update"),
     REPLACE("replace"),
-    DELETE("delete");
+    UPDATE("update"),
+    DELETE("delete"),
+    DROP_COLLECTION("drop"),
+    DROP_DATABASE("dropDatabase"),
+    RENAME_COLLECTION("rename"),
+    INVALIDATE("invalidate"),
+    UNKNOWN("unknown");
 
-    private final String text;
+    private final String value;
 
-    OperationType(final String text) {
-        this.text = text;
+    OperationType(final String value) {
+        this.value = value;
     }
 
-    String type() {
-        return this.text;
+    String getValue() {
+        return this.value;
     }
 
-    public static OperationType fromText(final String text) {
-        switch (text) {
-            case "insert":
-                return INSERT;
-            case "update":
-                return UPDATE;
-            case "replace":
-                return REPLACE;
-            case "delete":
-                return DELETE;
-            default:
-                throw new IllegalArgumentException("Error: unknown operation type " + text);
+    public static OperationType fromString(final String value) {
+        for (OperationType operationType : OperationType.values()) {
+            if (value.equalsIgnoreCase(operationType.value)) {
+                return operationType;
+            }
         }
+        return UNKNOWN;
     }
 
 }

@@ -18,19 +18,13 @@
 
 package com.mongodb.kafka.connect.sink.cdc.debezium.rdbms;
 
-import static com.mongodb.kafka.connect.sink.SinkTestHelper.createTopicConfig;
-import static java.util.Collections.emptyMap;
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.DynamicTest.dynamicTest;
-
-import java.util.Optional;
-import java.util.stream.Stream;
-
+import com.mongodb.client.model.DeleteOneModel;
+import com.mongodb.client.model.ReplaceOneModel;
+import com.mongodb.client.model.WriteModel;
+import com.mongodb.kafka.connect.sink.cdc.debezium.OperationType;
+import com.mongodb.kafka.connect.sink.converter.SinkDocument;
 import org.apache.kafka.connect.errors.DataException;
+import org.bson.BsonDocument;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -38,28 +32,20 @@ import org.junit.jupiter.api.TestFactory;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.runner.RunWith;
 
-import org.bson.BsonDocument;
+import java.util.Optional;
+import java.util.stream.Stream;
 
-import com.mongodb.client.model.DeleteOneModel;
-import com.mongodb.client.model.ReplaceOneModel;
-import com.mongodb.client.model.WriteModel;
-
-import com.mongodb.kafka.connect.sink.cdc.debezium.OperationType;
-import com.mongodb.kafka.connect.sink.converter.SinkDocument;
+import static com.mongodb.kafka.connect.sink.SinkTestHelper.createTopicConfig;
+import static java.util.Collections.emptyMap;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
 @RunWith(JUnitPlatform.class)
 class RdbmsHandlerTest {
-    private static final RdbmsHandler RDBMS_HANDLER_DEFAULT_MAPPING = new RdbmsHandler(createTopicConfig());
-    private static final RdbmsHandler RDBMS_HANDLER_EMPTY_MAPPING = new RdbmsHandler(createTopicConfig(), emptyMap());
-
-    @Test
-    @DisplayName("verify existing default config from base class")
-    void testExistingDefaultConfig() {
-        assertAll(
-                () -> assertNotNull(RDBMS_HANDLER_DEFAULT_MAPPING.getConfig(), "default config for handler must not be null"),
-                () -> assertNotNull(RDBMS_HANDLER_EMPTY_MAPPING.getConfig(), "default config for handler must not be null")
-        );
-    }
+    private static final RdbmsHandler RDBMS_HANDLER_DEFAULT_MAPPING = new RdbmsHandler();
+    private static final RdbmsHandler RDBMS_HANDLER_EMPTY_MAPPING = new RdbmsHandler(emptyMap());
 
     @Test
     @DisplayName("when key doc contains fields but value is empty then null due to tombstone")

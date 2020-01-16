@@ -16,39 +16,29 @@
  * Original Work: Apache License, Version 2.0, Copyright 2017 Hans-Peter Grahsl.
  */
 
-package com.mongodb.kafka.connect.sink.cdc.debezium.rdbms;
+package com.mongodb.kafka.connect.sink.cdc.mongodb.operations;
 
-import org.apache.kafka.connect.errors.DataException;
-
-import org.bson.BsonDocument;
-
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.model.DeleteOneModel;
 import com.mongodb.client.model.WriteModel;
-
-import com.mongodb.kafka.connect.sink.cdc.debezium.CdcOperation;
-import com.mongodb.kafka.connect.sink.cdc.debezium.OperationType;
+import com.mongodb.kafka.connect.sink.cdc.mongodb.Either;
+import com.mongodb.kafka.connect.sink.cdc.mongodb.MongoCdcOperation;
 import com.mongodb.kafka.connect.sink.converter.SinkDocument;
+import org.apache.kafka.connect.errors.DataException;
+import org.bson.BsonDocument;
 
-public class RdbmsDelete implements CdcOperation {
+import java.util.function.Consumer;
+
+import static com.mongodb.kafka.connect.sink.cdc.mongodb.operations.OperationHelper.getDocumentKey;
+
+public class Delete implements MongoCdcOperation {
 
     @Override
-    public WriteModel<BsonDocument> perform(final SinkDocument doc) {
-
-        BsonDocument keyDoc = doc.getKeyDoc().orElseThrow(
-                () -> new DataException("Error: key doc must not be missing for delete operation")
-        );
-
-        BsonDocument valueDoc = doc.getValueDoc().orElseThrow(
+    public Either<WriteModel<BsonDocument>, Consumer<MongoClient>> process(final SinkDocument doc) {
+        BsonDocument changeStreamDocument = doc.getValueDoc().orElseThrow(
                 () -> new DataException("Error: value doc must not be missing for delete operation")
         );
 
-        try {
-            BsonDocument filterDoc = RdbmsHandler.generateFilterDoc(keyDoc, valueDoc, OperationType.DELETE);
-            return new DeleteOneModel<>(filterDoc);
-        } catch (Exception exc) {
-            throw new DataException(exc);
-        }
-
+        return Either.left(new DeleteOneModel<>(getDocumentKey(changeStreamDocument)));
     }
-
 }

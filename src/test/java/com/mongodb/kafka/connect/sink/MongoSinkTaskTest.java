@@ -167,7 +167,7 @@ class MongoSinkTaskTest {
         })));
         return tests;
     }
-
+/*
     @Test
     @DisplayName("test with default config and no sink records")
     void testBuildWriteModelDefaultConfigSinkRecordsAbsent() {
@@ -400,7 +400,7 @@ class MongoSinkTaskTest {
             assertEquals(BsonDocument.parse(format("{_id: {id: %s}}", i)), filter);
         }));
     }
-
+*/
     private static Schema getRdbmsKeySchemaSample() {
         return SchemaBuilder.struct()
                 .name("dbserver1.catalogA.tableB.Key")

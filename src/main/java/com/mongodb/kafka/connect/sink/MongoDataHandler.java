@@ -16,16 +16,24 @@
  * Original Work: Apache License, Version 2.0, Copyright 2017 Hans-Peter Grahsl.
  */
 
-package com.mongodb.kafka.connect.sink.cdc;
+package com.mongodb.kafka.connect.sink;
 
-import org.bson.BsonDocument;
+import com.mongodb.client.MongoClient;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.kafka.connect.sink.SinkTaskContext;
 
-import com.mongodb.client.model.WriteModel;
+import java.util.List;
 
-import com.mongodb.kafka.connect.sink.converter.SinkDocument;
+public interface MongoDataHandler {
 
-public interface CdcOperation {
-
-    WriteModel<BsonDocument> perform(SinkDocument doc);
-
+    /**
+     * Process the Sink records
+     *
+     * @param context the context
+     * @param config the sink config for the topic
+     * @param mongoClient the mongoclient
+     * @param batch the batch of records
+     */
+    void processSinkRecords(final SinkTaskContext context, final MongoSinkTopicConfig config,
+                            final MongoClient mongoClient, final List<SinkRecord> batch);
 }

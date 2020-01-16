@@ -263,7 +263,7 @@ class MongoSinkConfigTest {
         cdcHandlers.forEach(s -> tests.add(
                 dynamicTest("cdc Handler for " + s, () -> {
                     MongoSinkConfig cfg = SinkTestHelper.createSinkConfig(format(json, CHANGE_DATA_CAPTURE_HANDLER_CONFIG, s));
-                    assertEquals(cfg.getMongoSinkTopicConfig(TEST_TOPIC).getCdcHandler().get().getClass().getName(), s);
+                    assertEquals(cfg.getMongoSinkTopicConfig(TEST_TOPIC).getMongoDataHandler().getClass().getName(), s);
                 })));
         return tests;
     }

@@ -178,7 +178,7 @@ public class MongoSinkTopicConfig extends AbstractConfig {
     private static final List<Consumer<MongoSinkTopicConfig>> INITIALIZERS = asList(
             MongoSinkTopicConfig::getNamespace, MongoSinkTopicConfig::getIdStrategy, MongoSinkTopicConfig::getPostProcessors,
             MongoSinkTopicConfig::getWriteModelStrategy, MongoSinkTopicConfig::getDeleteOneWriteModelStrategy,
-            MongoSinkTopicConfig::getRateLimitSettings, MongoSinkTopicConfig::getCdcHandler);
+            MongoSinkTopicConfig::getRateLimitSettings, MongoSinkTopicConfig::getMongoDataHandler);
 
     private final String topic;
     private MongoNamespace namespace;
@@ -187,7 +187,7 @@ public class MongoSinkTopicConfig extends AbstractConfig {
     private WriteModelStrategy writeModelStrategy;
     private WriteModelStrategy deleteOneWriteModelStrategy;
     private RateLimitSettings rateLimitSettings;
-    private CdcHandler cdcHandler;
+    private MongoDataHandler mongoDataHandler;
 
     MongoSinkTopicConfig(final String topic, final Map<String, String> originals) {
         this(topic, originals, true);
@@ -211,7 +211,7 @@ public class MongoSinkTopicConfig extends AbstractConfig {
         return topic;
     }
 
-    MongoNamespace getNamespace() {
+    public MongoNamespace getNamespace() {
         if (namespace == null) {
             String database = getString(DATABASE_CONFIG);
             if (database.isEmpty()) {
@@ -286,17 +286,18 @@ public class MongoSinkTopicConfig extends AbstractConfig {
         return Optional.of(deleteOneWriteModelStrategy);
     }
 
-    Optional<CdcHandler> getCdcHandler() {
-        String cdcHandler = getString(CHANGE_DATA_CAPTURE_HANDLER_CONFIG);
-        if (cdcHandler.isEmpty()) {
-            return Optional.empty();
+    MongoDataHandler getMongoDataHandler() {
+        if (mongoDataHandler != null) {
+            return mongoDataHandler;
         }
 
-        if (this.cdcHandler == null) {
-            this.cdcHandler = createInstance(CHANGE_DATA_CAPTURE_HANDLER_CONFIG, cdcHandler, CdcHandler.class,
-                    () -> (CdcHandler) Class.forName(cdcHandler).getConstructor(MongoSinkTopicConfig.class).newInstance(this));
+        String cdcHandlerClassName = getString(CHANGE_DATA_CAPTURE_HANDLER_CONFIG);
+        if (cdcHandlerClassName.isEmpty()) {
+            mongoDataHandler = new DefaultMongoDataHandler();
+        } else {
+            mongoDataHandler = createInstance(CHANGE_DATA_CAPTURE_HANDLER_CONFIG, cdcHandlerClassName, CdcHandler.class);
         }
-        return Optional.of(this.cdcHandler);
+        return mongoDataHandler;
     }
 
     RateLimitSettings getRateLimitSettings() {

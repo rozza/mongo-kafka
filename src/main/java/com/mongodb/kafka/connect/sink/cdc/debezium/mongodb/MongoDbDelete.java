@@ -29,7 +29,7 @@ import org.bson.BsonDocument;
 import com.mongodb.client.model.DeleteOneModel;
 import com.mongodb.client.model.WriteModel;
 
-import com.mongodb.kafka.connect.sink.cdc.CdcOperation;
+import com.mongodb.kafka.connect.sink.cdc.debezium.CdcOperation;
 import com.mongodb.kafka.connect.sink.converter.SinkDocument;
 
 public class MongoDbDelete implements CdcOperation {

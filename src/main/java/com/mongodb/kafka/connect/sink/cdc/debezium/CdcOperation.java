@@ -18,36 +18,14 @@
 
 package com.mongodb.kafka.connect.sink.cdc.debezium;
 
-public enum OperationType {
+import org.bson.BsonDocument;
 
-    CREATE("c"),
-    READ("r"),
-    UPDATE("u"),
-    DELETE("d");
+import com.mongodb.client.model.WriteModel;
 
-    private final String value;
+import com.mongodb.kafka.connect.sink.converter.SinkDocument;
 
-    OperationType(final String value) {
-        this.value = value;
-    }
+public interface CdcOperation {
 
-    String getValue() {
-        return this.value;
-    }
-
-    public static OperationType fromString(final String value) {
-        switch (value) {
-            case "c":
-                return CREATE;
-            case "r":
-                return READ;
-            case "u":
-                return UPDATE;
-            case "d":
-                return DELETE;
-            default:
-                throw new IllegalArgumentException("Error: unknown operation type " + value);
-        }
-    }
+    WriteModel<BsonDocument> perform(SinkDocument doc);
 
 }

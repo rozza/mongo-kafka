@@ -20,8 +20,7 @@ package com.mongodb.kafka.connect.sink.cdc.debezium.rdbms.postgres;
 
 import java.util.Map;
 
-import com.mongodb.kafka.connect.sink.MongoSinkTopicConfig;
-import com.mongodb.kafka.connect.sink.cdc.CdcOperation;
+import com.mongodb.kafka.connect.sink.cdc.debezium.CdcOperation;
 import com.mongodb.kafka.connect.sink.cdc.debezium.OperationType;
 import com.mongodb.kafka.connect.sink.cdc.debezium.rdbms.RdbmsHandler;
 
@@ -32,12 +31,12 @@ public class PostgresHandler extends RdbmsHandler {
     //and the CDC handling deviates from the standard
     //behaviour as implemented in RdbmsHandler.class
 
-    public PostgresHandler(final MongoSinkTopicConfig config) {
-        super(config);
+    public PostgresHandler() {
+        super();
     }
 
-    public PostgresHandler(final MongoSinkTopicConfig config, final Map<OperationType, CdcOperation> operations) {
-        super(config, operations);
+    public PostgresHandler(final Map<OperationType, CdcOperation> operations) {
+        super(operations);
     }
 
 }

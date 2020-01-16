@@ -18,23 +18,19 @@
 
 package com.mongodb.kafka.connect.sink.cdc.debezium.mongodb;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-
-import org.apache.kafka.connect.errors.DataException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.bson.BsonDocument;
-
 import com.mongodb.client.model.WriteModel;
-
-import com.mongodb.kafka.connect.sink.MongoSinkTopicConfig;
-import com.mongodb.kafka.connect.sink.cdc.CdcOperation;
+import com.mongodb.kafka.connect.sink.cdc.debezium.CdcOperation;
 import com.mongodb.kafka.connect.sink.cdc.debezium.DebeziumCdcHandler;
 import com.mongodb.kafka.connect.sink.cdc.debezium.OperationType;
 import com.mongodb.kafka.connect.sink.converter.SinkDocument;
+import org.apache.kafka.connect.errors.DataException;
+import org.bson.BsonDocument;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 public class MongoDbHandler extends DebeziumCdcHandler {
     static final String ID_FIELD = "_id";
@@ -47,13 +43,11 @@ public class MongoDbHandler extends DebeziumCdcHandler {
     }};
     private static final Logger LOGGER = LoggerFactory.getLogger(MongoDbHandler.class);
 
-    public MongoDbHandler(final MongoSinkTopicConfig config) {
-        this(config, DEFAULT_OPERATIONS);
+    public MongoDbHandler() {
+        this(DEFAULT_OPERATIONS);
     }
 
-    public MongoDbHandler(final MongoSinkTopicConfig config,
-                          final Map<OperationType, CdcOperation> operations) {
-        super(config);
+    public MongoDbHandler(final Map<OperationType, CdcOperation> operations) {
         registerOperations(operations);
     }
 

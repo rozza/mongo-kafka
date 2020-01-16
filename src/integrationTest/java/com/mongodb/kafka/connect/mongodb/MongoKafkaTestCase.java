@@ -36,6 +36,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.utils.Bytes;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.opentest4j.AssertionFailedError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -97,6 +98,29 @@ public class MongoKafkaTestCase {
         return isMaster.containsKey("setName") || isMaster.get("msg", "").equals("isdbgrid");
     }
 
+    public void assertCollection(final MongoCollection<?> original, final MongoCollection<?> expected) {
+        int retryCount = 0;
+        boolean invalid = true;
+        AssertionFailedError error = null;
+
+        while(invalid && retryCount < 10) {
+            try {
+                assertEquals(expected.countDocuments(), original.countDocuments());
+                assertIterableEquals(original.find().into(new ArrayList<>()), expected.find().into(new ArrayList<>()));
+                invalid = false;
+                LOGGER.info("Collections matched on check: #{}/10", retryCount);
+            } catch (AssertionFailedError e) {
+                sleep(2000);
+                retryCount++;
+                error = e;
+                LOGGER.info("Collections didn't match check: #{}/10", retryCount);
+            }
+        }
+        if (invalid) {
+            throw error;
+        }
+    }
+
     public void assertProduced(final int expectedCount, final String topicName) {
         assertEquals(expectedCount, getProduced(expectedCount, topicName).size());
     }
@@ -122,7 +146,7 @@ public class MongoKafkaTestCase {
             consumer.subscribe(singletonList(topicName));
             List<Bytes> data = new ArrayList<>();
             int retryCount = 0;
-            while (data.size() < expectedCount && retryCount < 30) {
+            while (data.size() < expectedCount && retryCount < 10) {
                 consumer.poll(Duration.ofSeconds(2)).records(topicName).forEach((r) -> data.add((Bytes) r.value()));
                 retryCount++;
                 LOGGER.info("Polling {} ({}) seen: #{}", topicName, retryCount, data.size());
@@ -147,6 +171,11 @@ public class MongoKafkaTestCase {
     public void addSinkConnector(final String topicName) {
         Properties props = new Properties();
         props.put("topics", topicName);
+        addSinkConnector(props);
+    }
+
+    public void addSinkConnector(final Properties overrides) {
+        Properties props = new Properties();
         props.put("connector.class", MongoSinkConnector.class.getName());
         props.put(MongoSinkConfig.CONNECTION_URI_CONFIG, MONGODB.getConnectionString().toString());
         props.put(MongoSinkTopicConfig.DATABASE_CONFIG, MONGODB.getDatabaseName());
@@ -157,6 +186,7 @@ public class MongoKafkaTestCase {
         props.put("value.converter", AvroConverter.class.getName());
         props.put("value.converter.schema.registry.url", KAFKA.schemaRegistryUrl());
 
+        overrides.forEach(props::put);
         KAFKA.addSinkConnector(props);
     }
 

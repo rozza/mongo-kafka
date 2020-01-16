@@ -16,21 +16,23 @@
  * Original Work: Apache License, Version 2.0, Copyright 2017 Hans-Peter Grahsl.
  */
 
-package com.mongodb.kafka.connect.sink.cdc.debezium.mongodb;
+package com.mongodb.kafka.connect.sink.cdc.mongodb;
 
-import static com.mongodb.kafka.connect.sink.SinkTestHelper.createTopicConfig;
-import static java.util.Collections.emptyMap;
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.DynamicTest.dynamicTest;
-
-import java.util.Optional;
-import java.util.stream.Stream;
-
+import com.mongodb.client.model.DeleteOneModel;
+import com.mongodb.client.model.ReplaceOneModel;
+import com.mongodb.client.model.UpdateOneModel;
+import com.mongodb.client.model.WriteModel;
+import com.mongodb.kafka.connect.sink.cdc.debezium.OperationType;
+import com.mongodb.kafka.connect.sink.cdc.debezium.mongodb.MongoDbDelete;
+import com.mongodb.kafka.connect.sink.cdc.debezium.mongodb.MongoDbHandler;
+import com.mongodb.kafka.connect.sink.cdc.debezium.mongodb.MongoDbInsert;
+import com.mongodb.kafka.connect.sink.cdc.debezium.mongodb.MongoDbUpdate;
+import com.mongodb.kafka.connect.sink.converter.SinkDocument;
 import org.apache.kafka.connect.errors.DataException;
+import org.bson.BsonDocument;
+import org.bson.BsonInt32;
+import org.bson.BsonNull;
+import org.bson.BsonString;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -38,18 +40,14 @@ import org.junit.jupiter.api.TestFactory;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.runner.RunWith;
 
-import org.bson.BsonDocument;
-import org.bson.BsonInt32;
-import org.bson.BsonNull;
-import org.bson.BsonString;
+import java.util.Optional;
+import java.util.stream.Stream;
 
-import com.mongodb.client.model.DeleteOneModel;
-import com.mongodb.client.model.ReplaceOneModel;
-import com.mongodb.client.model.UpdateOneModel;
-import com.mongodb.client.model.WriteModel;
-
-import com.mongodb.kafka.connect.sink.cdc.debezium.OperationType;
-import com.mongodb.kafka.connect.sink.converter.SinkDocument;
+import static java.util.Collections.emptyMap;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
 @RunWith(JUnitPlatform.class)
 class MongoDbHandlerTest {

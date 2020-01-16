@@ -16,13 +16,18 @@
  * Original Work: Apache License, Version 2.0, Copyright 2017 Hans-Peter Grahsl.
  */
 
-package com.mongodb.kafka.connect.sink.cdc;
+package com.mongodb.kafka.connect.sink.cdc.mongodb;
 
-import com.mongodb.kafka.connect.sink.MongoDataHandler;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.model.WriteModel;
+import com.mongodb.kafka.connect.sink.converter.SinkDocument;
+import org.bson.BsonDocument;
 
-public abstract class CdcHandler implements MongoDataHandler {
+import java.util.function.Consumer;
 
-    public CdcHandler() {
-    }
+public interface MongoCdcOperation {
+
+    Either<WriteModel<BsonDocument>, Consumer<MongoClient>> process(SinkDocument doc);
+
 
 }

@@ -31,7 +31,7 @@ import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.UpdateOneModel;
 import com.mongodb.client.model.WriteModel;
 
-import com.mongodb.kafka.connect.sink.cdc.CdcOperation;
+import com.mongodb.kafka.connect.sink.cdc.debezium.CdcOperation;
 import com.mongodb.kafka.connect.sink.converter.SinkDocument;
 
 public class MongoDbUpdate implements CdcOperation {

@@ -34,10 +34,10 @@ class OperationTypeTest {
     @DisplayName("when op type 'c' then type CREATE")
     void testOperationTypeCreate() {
         String textType = "c";
-        OperationType otCreate = OperationType.fromText(textType);
+        OperationType otCreate = OperationType.fromString(textType);
         assertAll(
                 () -> assertEquals(OperationType.CREATE, otCreate),
-                () -> assertEquals(textType, otCreate.type())
+                () -> assertEquals(textType, otCreate.getValue())
         );
     }
 
@@ -45,10 +45,10 @@ class OperationTypeTest {
     @DisplayName("when op type 'r' then type READ")
     void testOperationTypeRead() {
         String textType = "r";
-        OperationType otRead = OperationType.fromText(textType);
+        OperationType otRead = OperationType.fromString(textType);
         assertAll(
                 () -> assertEquals(OperationType.READ, otRead),
-                () -> assertEquals(textType, otRead.type())
+                () -> assertEquals(textType, otRead.getValue())
         );
     }
 
@@ -56,10 +56,10 @@ class OperationTypeTest {
     @DisplayName("when op type 'u' then type UPDATE")
     void testOperationTypeUpdate() {
         String textType = "u";
-        OperationType otUpdate = OperationType.fromText(textType);
+        OperationType otUpdate = OperationType.fromString(textType);
         assertAll(
                 () -> assertEquals(OperationType.UPDATE, otUpdate),
-                () -> assertEquals(textType, otUpdate.type())
+                () -> assertEquals(textType, otUpdate.getValue())
         );
     }
 
@@ -67,17 +67,17 @@ class OperationTypeTest {
     @DisplayName("when op type 'd' then type DELETE")
     void testOperationTypeDelete() {
         String textType = "d";
-        OperationType otDelete = OperationType.fromText(textType);
+        OperationType otDelete = OperationType.fromString(textType);
         assertAll(
                 () -> assertEquals(OperationType.DELETE, otDelete),
-                () -> assertEquals(textType, otDelete.type())
+                () -> assertEquals(textType, otDelete.getValue())
         );
     }
 
     @Test
     @DisplayName("when invalid op type IllegalArgumentException")
     void testOperationTypeInvalid() {
-        assertThrows(IllegalArgumentException.class, () -> OperationType.fromText("x"));
+        assertThrows(IllegalArgumentException.class, () -> OperationType.fromString("x"));
     }
 
 }

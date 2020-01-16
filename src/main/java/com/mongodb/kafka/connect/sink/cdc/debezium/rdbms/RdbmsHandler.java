@@ -32,8 +32,7 @@ import org.bson.BsonObjectId;
 
 import com.mongodb.client.model.WriteModel;
 
-import com.mongodb.kafka.connect.sink.MongoSinkTopicConfig;
-import com.mongodb.kafka.connect.sink.cdc.CdcOperation;
+import com.mongodb.kafka.connect.sink.cdc.debezium.CdcOperation;
 import com.mongodb.kafka.connect.sink.cdc.debezium.DebeziumCdcHandler;
 import com.mongodb.kafka.connect.sink.cdc.debezium.OperationType;
 import com.mongodb.kafka.connect.sink.converter.SinkDocument;
@@ -50,13 +49,12 @@ public class RdbmsHandler extends DebeziumCdcHandler {
         put(OperationType.DELETE, new RdbmsDelete());
     }};
 
-    public RdbmsHandler(final MongoSinkTopicConfig config) {
-        this(config, DEFAULT_OPERATIONS);
+    public RdbmsHandler() {
+        this(DEFAULT_OPERATIONS);
     }
 
-    public RdbmsHandler(final MongoSinkTopicConfig config,
-                        final Map<OperationType, CdcOperation> operations) {
-        super(config);
+    public RdbmsHandler(final Map<OperationType, CdcOperation> operations) {
+        super();
         registerOperations(operations);
     }
 

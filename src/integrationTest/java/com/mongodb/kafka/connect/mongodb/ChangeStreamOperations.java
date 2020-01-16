@@ -22,7 +22,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.bson.Document;
+import org.bson.BsonDocument;
+import org.bson.BsonInt32;
+import org.bson.BsonString;
 
 public class ChangeStreamOperations {
     private static final ChangeStreamOperation DROP_DATABASE = new DropDatabase();
@@ -52,14 +54,22 @@ public class ChangeStreamOperations {
         return rangeClosed(start, end).mapToObj(ChangeStreamOperations::createInsert).collect(Collectors.toList());
     }
 
+    public static List<ChangeStreamOperation> createUpdates(final int start, final int end, final BsonDocument updatedDescription) {
+        return rangeClosed(start, end).mapToObj(id -> createUpdate(id, updatedDescription)).collect(Collectors.toList());
+    }
+
     public static ChangeStreamOperation createInsert(final int id) {
         return new Insert(id);
     }
 
+    public static ChangeStreamOperation createUpdate(final int id, final BsonDocument updatedDescription) {
+        return new Update(new BsonDocument("_id", new BsonInt32(id)), updatedDescription);
+    }
+
     public static ChangeStreamOperation createChangeStreamOperation(final String changeStreamJson) {
-        Document document = Document.parse(changeStreamJson);
+        BsonDocument changeStreamDocument = BsonDocument.parse(changeStreamJson);
         ChangeStreamOperation changeStreamOperation;
-        switch (document.get("operationType", "unknown").toLowerCase()) {
+        switch (changeStreamDocument.getString("operationType", new BsonString("unknown")).getValue().toLowerCase()) {
             case "dropdatabase":
                 changeStreamOperation = DROP_DATABASE;
                 break;
@@ -67,7 +77,12 @@ public class ChangeStreamOperations {
                 changeStreamOperation = DROP;
                 break;
             case "insert":
-                changeStreamOperation = new Insert(document.get("documentKey", new Document()).getInteger("_id", -1));
+                changeStreamOperation = new Insert(changeStreamDocument.getDocument("documentKey", new BsonDocument())
+                        .getInt32("_id", new BsonInt32(-1)).getValue());
+                break;
+            case "update":
+                changeStreamOperation = new Update(changeStreamDocument.getDocument("documentKey", new BsonDocument()),
+                        changeStreamDocument.getDocument("updateDescription", new BsonDocument()));
                 break;
             default:
                 changeStreamOperation = UNKNOWN;
@@ -127,6 +142,42 @@ public class ChangeStreamOperations {
         public String toString() {
             return "Insert{" +
                     "id=" + id +
+                    '}';
+        }
+    }
+
+    public static class Update implements ChangeStreamOperation {
+        private final BsonDocument filter;
+        private final BsonDocument updateDescription;
+
+        public Update(final BsonDocument filter, final BsonDocument updateDescription) {
+            this.filter = filter;
+            this.updateDescription = updateDescription;
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final Update update = (Update) o;
+            return Objects.equals(filter, update.filter) &&
+                    Objects.equals(updateDescription, update.updateDescription);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(filter, updateDescription);
+        }
+
+        @Override
+        public String toString() {
+            return "Update{" +
+                    "filter=" + filter.toJson() +
+                    ", updateDescription=" + updateDescription.toJson() +
                     '}';
         }
     }
