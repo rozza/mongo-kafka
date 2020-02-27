@@ -393,6 +393,7 @@ public class MongoSourceTask extends SourceTask {
         if (cachedResumeToken != null) {
             resumeToken = cachedResumeToken;
             cachedResumeToken = null;
+            invalidatedCursor = false;
         } else if (invalidatedCursor) {
             invalidatedCursor = false;
         } else if (offset != null && !offset.containsKey("initialSync")) {
