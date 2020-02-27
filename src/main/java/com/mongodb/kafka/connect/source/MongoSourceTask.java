@@ -46,9 +46,11 @@ import org.slf4j.LoggerFactory;
 
 import org.bson.BsonDocument;
 import org.bson.BsonDocumentWrapper;
+import org.bson.BsonString;
 import org.bson.Document;
 
 import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoCommandException;
 import com.mongodb.client.ChangeStreamIterable;
 import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.MongoClient;
@@ -89,17 +91,20 @@ import com.mongodb.kafka.connect.Versions;
  */
 public class MongoSourceTask extends SourceTask {
     private static final Logger LOGGER = LoggerFactory.getLogger(MongoSourceTask.class);
+    private static final String INVALIDATE = "invalidate";
 
     private final Time time;
     private final AtomicBoolean isRunning = new AtomicBoolean();
+    private final AtomicBoolean isCopying = new AtomicBoolean();
 
     private MongoSourceConfig sourceConfig;
     private MongoClient mongoClient;
 
-    private final AtomicBoolean isCopying = new AtomicBoolean();
+    private boolean supportsStartAfter = true;
+    private boolean invalidatedCursor = false;
     private MongoCopyDataManager copyDataManager;
     private BsonDocument cachedResult;
-    private BsonDocument cachedResumeAfter;
+    private BsonDocument cachedResumeToken;
 
     private MongoCursor<BsonDocument> cursor;
 
@@ -169,6 +174,10 @@ public class MongoSourceTask extends SourceTask {
                     sourceOffset.put("copy", "true");
                 }
 
+                if (changeStreamDocument.getString("operationType", new BsonString("")).getValue().equalsIgnoreCase(INVALIDATE)) {
+                    cachedResumeToken = changeStreamDocument.getDocument("_id");
+                }
+
                 String topicName = getTopicNameFromNamespace(prefix, changeStreamDocument.getDocument("ns", new BsonDocument()));
 
                 Optional<String> jsonDocument = Optional.empty();
@@ -181,7 +190,7 @@ public class MongoSourceTask extends SourceTask {
                 }
 
                 jsonDocument.ifPresent((json) -> {
-                    LOGGER.trace("Adding {} to {}", json, topicName);
+                    LOGGER.trace("Adding {} to {}: {}", json, topicName, sourceOffset);
                     String keyJson = new BsonDocument("_id", changeStreamDocument.get("_id")).toJson();
                     sourceRecords.add(new SourceRecord(partition, sourceOffset, topicName, Schema.STRING_SCHEMA, keyJson,
                             Schema.STRING_SCHEMA, json));
@@ -218,19 +227,32 @@ public class MongoSourceTask extends SourceTask {
 
     MongoCursor<BsonDocument> createCursor(final MongoSourceConfig cfg, final MongoClient mongoClient) {
         LOGGER.debug("Creating a MongoCursor");
-        ChangeStreamIterable<Document> changeStream = getChangeStreamIterable(cfg, mongoClient);
-        BsonDocument resumeAfter = getResumeAfter(cfg);
-        if (resumeAfter != null) {
-            LOGGER.info("Resuming the change stream at the previous offset");
-            changeStream.resumeAfter(resumeAfter);
-            cachedResumeAfter = null;
+        BsonDocument resumeToken = getResumeToken(cfg);
+        return tryCreateCursor(cfg, mongoClient, resumeToken)
+                .orElseGet(() -> resumeToken == null ? null : tryCreateCursor(cfg, mongoClient, null).orElse(null));
+    }
+
+    private Optional<MongoCursor<BsonDocument>> tryCreateCursor(final MongoSourceConfig cfg, final MongoClient mongoClient,
+                                                                final BsonDocument resumeToken) {
+        try {
+            ChangeStreamIterable<Document> changeStreamIterable = getChangeStreamIterable(cfg, mongoClient);
+            if (resumeToken != null && supportsStartAfter) {
+                LOGGER.info("Resuming the change stream after the previous offset");
+                changeStreamIterable.startAfter(resumeToken);
+            } else {
+                LOGGER.info("New change stream cursor created without offset");
+            }
+            return Optional.of(changeStreamIterable.withDocumentClass(BsonDocument.class).iterator());
+        } catch (MongoCommandException e) {
+            if (resumeToken != null && e.getErrorCode() == 40415) {
+                supportsStartAfter = false;
+            }
+            LOGGER.info("Failed to resume change stream: {}", e.getErrorMessage());
+            return Optional.empty();
         }
-        LOGGER.debug("Cursor created");
-        return changeStream.withDocumentClass(BsonDocument.class).iterator();
     }
 
     String getTopicNameFromNamespace(final String prefix, final BsonDocument namespaceDocument) {
-
         String topicName = "";
         if (namespaceDocument.containsKey("db")) {
             topicName = namespaceDocument.getString("db").getValue();
@@ -271,7 +293,7 @@ public class MongoSourceTask extends SourceTask {
             cachedResult = new BsonDocumentWrapper<>(firstResult, ChangeStreamDocument.createCodec(Document.class,
                     MongoClientSettings.getDefaultCodecRegistry()));
         }
-        cachedResumeAfter = firstResult != null ? firstResult.getResumeToken() : changeStreamCursor.getResumeToken();
+        cachedResumeToken = firstResult != null ? firstResult.getResumeToken() : changeStreamCursor.getResumeToken();
         changeStreamCursor.close();
     }
 
@@ -284,7 +306,6 @@ public class MongoSourceTask extends SourceTask {
      * <li>If copying data and all data has been copied and there is a cached result return the cached result.</li>
      * <li>Otherwise, return the next result from the change stream cursor. Creating a new cursor if necessary.</li>
      * </ol>
-     *
      * </p>
      *
      * @return the next document
@@ -309,18 +330,25 @@ public class MongoSourceTask extends SourceTask {
             cursor = createCursor(sourceConfig, mongoClient);
         }
 
-        try {
-            BsonDocument next = cursor.tryNext();
-            if (next == null && cursor.getServerCursor() == null) {
-                cursor.close();
-                cursor = null;
+        if (cursor != null) {
+            try {
+                BsonDocument next = cursor.tryNext();
+                // The cursor has been closed by the server
+                if (next == null && cursor.getServerCursor() == null) {
+                    invalidatedCursor = true;
+                    cursor.close();
+                    cursor = createCursor(sourceConfig, mongoClient);
+                }
+                return Optional.ofNullable(next);
+            } catch (Exception e) {
+                if (cursor != null) {
+                    cursor.close();
+                    cursor = createCursor(sourceConfig, mongoClient);
+                }
+                return Optional.empty();
             }
-            return Optional.ofNullable(next);
-        } catch (Exception e) {
-            cursor.close();
-            cursor = null;
-            return Optional.empty();
         }
+        return  Optional.empty();
     }
 
     private ChangeStreamIterable<Document> getChangeStreamIterable(final MongoSourceConfig cfg,
@@ -356,16 +384,20 @@ public class MongoSourceTask extends SourceTask {
         return context != null ? context.offsetStorageReader().offset(createPartitionMap(sourceConfig)) : null;
     }
 
-    private BsonDocument getResumeAfter(final MongoSourceConfig cfg) {
-        return getResumeAfter(getOffset(cfg));
+    private BsonDocument getResumeToken(final MongoSourceConfig cfg) {
+        return getResumeToken(getOffset(cfg));
     }
 
-    private BsonDocument getResumeAfter(final Map<String, Object> offset) {
-        if (cachedResumeAfter != null) {
-            return cachedResumeAfter;
+    private BsonDocument getResumeToken(final Map<String, Object> offset) {
+        BsonDocument resumeToken = null;
+        if (cachedResumeToken != null) {
+            resumeToken = cachedResumeToken;
+            cachedResumeToken = null;
+        } else if (invalidatedCursor) {
+            invalidatedCursor = false;
         } else if (offset != null && !offset.containsKey("initialSync")) {
-            return BsonDocument.parse((String) offset.get("_id"));
+            resumeToken = BsonDocument.parse((String) offset.get("_id"));
         }
-        return null;
+        return resumeToken;
     }
 }
