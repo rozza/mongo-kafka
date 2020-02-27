@@ -391,6 +391,70 @@ public class MongoSourceConnectorTest extends MongoKafkaTestCase {
         assertProducedDocs(allDocs, coll);
     }
 
+    @Test
+    @DisplayName("Ensure source can survive a restart")
+    void testSourceSurvivesARestart() {
+        MongoCollection<Document> coll = getDatabaseWithPostfix().getCollection("coll");
+
+        Properties sourceProperties = new Properties();
+        sourceProperties.put(MongoSourceConfig.DATABASE_CONFIG, coll.getNamespace().getDatabaseName());
+        sourceProperties.put(MongoSourceConfig.COLLECTION_CONFIG, coll.getNamespace().getCollectionName());
+        addSourceConnector(sourceProperties);
+
+        insertMany(rangeClosed(1, 50), coll);
+        assertProduced(createInserts(1, 50), coll);
+
+        insertMany(rangeClosed(51, 100), coll);
+        restartConnector(sourceProperties);
+
+        assertProduced(concat(createInserts(1, 100)), coll);
+    }
+
+    @Test
+    @DisplayName("Ensure source can survive a restart with a drop")
+    void testSourceSurvivesARestartWithDrop() {
+        MongoCollection<Document> coll = getDatabaseWithPostfix().getCollection("coll");
+
+        Properties sourceProperties = new Properties();
+        sourceProperties.put(MongoSourceConfig.DATABASE_CONFIG, coll.getNamespace().getDatabaseName());
+        sourceProperties.put(MongoSourceConfig.COLLECTION_CONFIG, coll.getNamespace().getCollectionName());
+        addSourceConnector(sourceProperties);
+
+        insertMany(rangeClosed(1, 50), coll);
+        assertProduced(createInserts(1, 50), coll);
+
+        coll.drop();
+        assertProduced(concat(createInserts(1, 50), singletonList(createDropCollection())), coll);
+
+        restartConnector(sourceProperties);
+        insertMany(rangeClosed(51, 100), coll);
+
+        assertProduced(concat(createInserts(1, 50), singletonList(createDropCollection()), createInserts(51, 100)), coll);
+    }
+
+    @Test
+    @DisplayName("Ensure source can survive a restart with a drop when watching just inserts")
+    void testSourceSurvivesARestartWithDropIncludingPipeline() {
+        MongoCollection<Document> coll = getDatabaseWithPostfix().getCollection("coll");
+
+        Properties sourceProperties = new Properties();
+        sourceProperties.put(MongoSourceConfig.DATABASE_CONFIG, coll.getNamespace().getDatabaseName());
+        sourceProperties.put(MongoSourceConfig.COLLECTION_CONFIG, coll.getNamespace().getCollectionName());
+        sourceProperties.put(MongoSourceConfig.PIPELINE_CONFIG, "[{\"$match\": {\"operationType\": \"insert\"}}]");
+        addSourceConnector(sourceProperties);
+
+        insertMany(rangeClosed(1, 50), coll);
+        assertProduced(createInserts(1, 50), coll);
+
+        coll.drop();
+        assertProduced(createInserts(1, 50), coll);
+
+        restartConnector(sourceProperties);
+        insertMany(rangeClosed(51, 100), coll);
+
+        assertProduced(createInserts(1, 100), coll);
+    }
+
     private MongoDatabase getDatabaseWithPostfix() {
         return getMongoClient().getDatabase(format("%s%s", getDatabaseName(), POSTFIX.incrementAndGet()));
     }

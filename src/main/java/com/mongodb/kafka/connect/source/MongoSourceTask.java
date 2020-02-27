@@ -176,6 +176,7 @@ public class MongoSourceTask extends SourceTask {
 
                 if (changeStreamDocument.getString("operationType", new BsonString("")).getValue().equalsIgnoreCase(INVALIDATE)) {
                     cachedResumeToken = changeStreamDocument.getDocument("_id");
+                    invalidatedCursor = true;
                 }
 
                 String topicName = getTopicNameFromNamespace(prefix, changeStreamDocument.getDocument("ns", new BsonDocument()));
@@ -229,7 +230,7 @@ public class MongoSourceTask extends SourceTask {
         LOGGER.debug("Creating a MongoCursor");
         BsonDocument resumeToken = getResumeToken(cfg);
         return tryCreateCursor(cfg, mongoClient, resumeToken)
-                .orElseGet(() -> resumeToken == null ? null : tryCreateCursor(cfg, mongoClient, null).orElse(null));
+                .orElseGet(() -> resumeToken == null ? null : tryCreateCursor(cfg, mongoClient, resumeToken).orElse(null));
     }
 
     private Optional<MongoCursor<BsonDocument>> tryCreateCursor(final MongoSourceConfig cfg, final MongoClient mongoClient,
@@ -239,15 +240,20 @@ public class MongoSourceTask extends SourceTask {
             if (resumeToken != null && supportsStartAfter) {
                 LOGGER.info("Resuming the change stream after the previous offset");
                 changeStreamIterable.startAfter(resumeToken);
+            } else if (resumeToken != null && !invalidatedCursor) {
+                LOGGER.info("Resuming the change stream after the previous offset using resumeAfter");
+                changeStreamIterable.resumeAfter(resumeToken);
             } else {
                 LOGGER.info("New change stream cursor created without offset");
             }
             return Optional.of(changeStreamIterable.withDocumentClass(BsonDocument.class).iterator());
         } catch (MongoCommandException e) {
-            if (resumeToken != null && e.getErrorCode() == 40415) {
+            if (resumeToken != null && e.getErrorCode() == 40415 && e.getErrorMessage().contains("startAfter")) {
                 supportsStartAfter = false;
+            } else if (resumeToken != null && e.getErrorCode() == 260) {
+                invalidatedCursor = true;
             }
-            LOGGER.info("Failed to resume change stream: {}", e.getErrorMessage());
+            LOGGER.info("Failed to resume change stream: {} {}", e.getErrorMessage(), e.getErrorCode());
             return Optional.empty();
         }
     }
@@ -393,7 +399,6 @@ public class MongoSourceTask extends SourceTask {
         if (cachedResumeToken != null) {
             resumeToken = cachedResumeToken;
             cachedResumeToken = null;
-            invalidatedCursor = false;
         } else if (invalidatedCursor) {
             invalidatedCursor = false;
         } else if (offset != null && !offset.containsKey("initialSync")) {

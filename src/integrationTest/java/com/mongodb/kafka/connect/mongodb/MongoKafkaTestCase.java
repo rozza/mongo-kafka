@@ -173,5 +173,14 @@ public class MongoKafkaTestCase {
         KAFKA.addSourceConnector(props);
         sleep(10000);
     }
+    public void restartConnector() {
+        restartConnector(new Properties());
+    }
+
+    public void restartConnector(final Properties overrides) {
+        KAFKA.deleteSourceConnector();
+        sleep(5000);
+        addSourceConnector(overrides);
+    }
 
 }
