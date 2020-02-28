@@ -244,7 +244,7 @@ public class MongoSourceTask extends SourceTask {
             if (resumeToken != null) {
                 if (e.getErrorCode() == 260) {
                     invalidatedCursor = true;
-                    return tryCreateCursor(sourceConfig, mongoClient, resumeToken);
+                    return tryCreateCursor(sourceConfig, mongoClient, null);
                 } else if (e.getErrorCode() == 40415 && e.getErrorMessage().contains("startAfter")) {
                     supportsStartAfter = false;
                     return tryCreateCursor(sourceConfig, mongoClient, resumeToken);
@@ -340,13 +340,15 @@ public class MongoSourceTask extends SourceTask {
                 if (next == null && cursor.getServerCursor() == null) {
                     invalidatedCursor = true;
                     cursor.close();
+                    cursor = null;
                     cursor = createCursor(sourceConfig, mongoClient);
+                    next = cursor.tryNext();
                 }
                 return Optional.ofNullable(next);
             } catch (Exception e) {
                 if (cursor != null) {
                     cursor.close();
-                    cursor = createCursor(sourceConfig, mongoClient);
+                    cursor = null;
                 }
                 return Optional.empty();
             }
