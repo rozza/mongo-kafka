@@ -350,6 +350,7 @@ public class MongoSourceTask extends SourceTask {
                     cursor.close();
                     cursor = null;
                 }
+                LOGGER.info("An exception occurred when trying to get the next item from the changestream.", e);
                 return Optional.empty();
             }
         }
