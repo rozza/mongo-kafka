@@ -18,11 +18,14 @@
 
 package com.mongodb.kafka.connect;
 
+import static com.mongodb.kafka.connect.util.ConnectionValidator.validateConnection;
+import static com.mongodb.kafka.connect.util.ConnectionValidator.validateHasReadWritePermissions;
 import static java.util.Collections.singletonList;
 
 import java.util.List;
 import java.util.Map;
 
+import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.sink.SinkConnector;
@@ -60,5 +63,25 @@ public class MongoSinkConnector extends SinkConnector {
     @Override
     public ConfigDef config() {
         return MongoSinkConfig.CONFIG;
+    }
+
+    @Override
+    public Config validate(final Map<String, String> connectorConfigs) {
+        Config config = super.validate(connectorConfigs);
+
+        MongoSinkConfig sinkConfig;
+        try {
+            sinkConfig = new MongoSinkConfig(connectorConfigs);
+        } catch (Exception e) {
+            return config;
+        }
+
+        validateConnection(config, MongoSinkConfig.CONNECTION_URI_CONFIG)
+                .ifPresent(client -> {
+                    validateHasReadWritePermissions(client, sinkConfig, config);
+                    client.close();
+                });
+
+        return config;
     }
 }

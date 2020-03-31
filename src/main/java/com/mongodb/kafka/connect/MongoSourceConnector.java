@@ -16,11 +16,14 @@
 
 package com.mongodb.kafka.connect;
 
+import static com.mongodb.kafka.connect.util.ConnectionValidator.validateConnection;
+import static com.mongodb.kafka.connect.util.ConnectionValidator.validateHasChangeStreamPermissions;
 import static java.util.Collections.singletonList;
 
 import java.util.List;
 import java.util.Map;
 
+import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.source.SourceConnector;
@@ -40,6 +43,25 @@ public class MongoSourceConnector extends SourceConnector {
     @Override
     public Class<? extends Task> taskClass() {
         return MongoSourceTask.class;
+    }
+
+    @Override
+    public Config validate(final Map<String, String> connectorConfigs) {
+        Config config = super.validate(connectorConfigs);
+        MongoSourceConfig sourceConfig;
+        try {
+            sourceConfig = new MongoSourceConfig(connectorConfigs);
+        } catch (Exception e) {
+            return config;
+        }
+
+        validateConnection(config, MongoSourceConfig.CONNECTION_URI_CONFIG)
+                .ifPresent(client -> {
+                    validateHasChangeStreamPermissions(client, sourceConfig, config);
+                    client.close();
+                });
+
+        return config;
     }
 
     @Override
