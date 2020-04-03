@@ -82,12 +82,12 @@ public class LazyBsonDocument extends BsonDocument {
 
     @Override
     public void putAll(final Map<? extends String, ? extends BsonValue> m) {
-        super.putAll(m);
+        getUnwrapped().putAll(m);
     }
 
     @Override
     public void clear() {
-        super.clear();
+        getUnwrapped().clear();
     }
 
     @Override
