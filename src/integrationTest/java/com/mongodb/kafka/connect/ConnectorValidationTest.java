@@ -108,18 +108,6 @@ public final class ConnectorValidationTest {
     }
 
     @Test
-    @DisplayName("Ensure source configuration validation handles invalid pipelines")
-    void testSourceConfigValidationInvalidPipeline() {
-        Map<String, String> properties = new HashMap<>();
-        properties.put(MongoSourceConfig.CONNECTION_URI_CONFIG, getConnectionString().toString());
-        properties.put(MongoSourceConfig.DATABASE_CONFIG, getDatabaseName());
-        properties.put(MongoSourceConfig.PIPELINE_CONFIG, "[{$group: {_id: 1}}]");
-
-        Config config = new MongoSourceConnector().validate(properties);
-        assertFalse(getConfigValue(config, MongoSourceConfig.CONNECTION_URI_CONFIG).errorMessages().isEmpty());
-    }
-
-    @Test
     @DisplayName("Ensure source configuration validation handles invalid user")
     void testSourceConfigValidationInvalidUser() {
         Map<String, String> properties = new HashMap<>();

@@ -16,8 +16,9 @@
 
 package com.mongodb.kafka.connect;
 
-import static com.mongodb.kafka.connect.util.ConnectionValidator.validateConnection;
-import static com.mongodb.kafka.connect.util.ConnectionValidator.validateHasChangeStreamPermissions;
+import static com.mongodb.kafka.connect.util.ConnectionValidator.validateCanConnect;
+import static com.mongodb.kafka.connect.util.ConnectionValidator.validateUserHasActions;
+import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 
 import java.util.List;
@@ -32,7 +33,7 @@ import com.mongodb.kafka.connect.source.MongoSourceConfig;
 import com.mongodb.kafka.connect.source.MongoSourceTask;
 
 public class MongoSourceConnector extends SourceConnector {
-
+    private static final List<String> REQUIRED_SOURCE_ACTIONS = asList("changeStream", "find");
     private Map<String, String> settings;
 
     @Override
@@ -55,9 +56,14 @@ public class MongoSourceConnector extends SourceConnector {
             return config;
         }
 
-        validateConnection(config, MongoSourceConfig.CONNECTION_URI_CONFIG)
+        validateCanConnect(config, MongoSourceConfig.CONNECTION_URI_CONFIG)
                 .ifPresent(client -> {
-                    validateHasChangeStreamPermissions(client, sourceConfig, config);
+                    validateUserHasActions(client,
+                            sourceConfig.getConnectionString().getCredential(),
+                            REQUIRED_SOURCE_ACTIONS,
+                            sourceConfig.getString(MongoSourceConfig.DATABASE_CONFIG),
+                            sourceConfig.getString(MongoSourceConfig.COLLECTION_CONFIG),
+                            MongoSourceConfig.CONNECTION_URI_CONFIG, config);
                     client.close();
                 });
 

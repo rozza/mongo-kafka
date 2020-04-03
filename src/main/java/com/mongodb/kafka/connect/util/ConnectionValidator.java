@@ -17,6 +17,7 @@ package com.mongodb.kafka.connect.util;
 
 import static java.lang.String.format;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -25,35 +26,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigValue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.bson.BsonArray;
-import org.bson.BsonDocument;
 import org.bson.Document;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
-import com.mongodb.MongoCommandException;
-import com.mongodb.MongoNamespace;
+import com.mongodb.MongoCredential;
+import com.mongodb.MongoSecurityException;
 import com.mongodb.ReadPreference;
-import com.mongodb.client.ChangeStreamIterable;
-import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.event.ClusterClosedEvent;
 import com.mongodb.event.ClusterDescriptionChangedEvent;
 import com.mongodb.event.ClusterListener;
 import com.mongodb.event.ClusterOpeningEvent;
 
-import com.mongodb.kafka.connect.sink.MongoSinkConfig;
-import com.mongodb.kafka.connect.sink.MongoSinkTopicConfig;
-import com.mongodb.kafka.connect.source.MongoSourceConfig;
 
 public final class ConnectionValidator {
 
-    public static Optional<MongoClient> validateConnection(final Config config, final String connectionStringConfigName) {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ConnectionValidator.class);
+
+    public static Optional<MongoClient> validateCanConnect(final Config config, final String connectionStringConfigName) {
         Optional<ConfigValue> optionalConnectionString = getConfigByName(config, connectionStringConfigName);
         if (optionalConnectionString.isPresent() && optionalConnectionString.get().errorMessages().isEmpty()) {
             ConfigValue configValue = optionalConnectionString.get();
@@ -100,64 +95,78 @@ public final class ConnectionValidator {
         return Optional.empty();
     }
 
-    public static void validateHasChangeStreamPermissions(final MongoClient mongoClient, final MongoSourceConfig sourceConfig,
-                                                          final Config config) {
+    public static void validateUserHasActions(final MongoClient mongoClient, final MongoCredential credential, final List<String> actions,
+                                              final String databaseName, final String collectionName, final String configName,
+                                              final Config config) {
 
-        String database = sourceConfig.getString(MongoSourceConfig.DATABASE_CONFIG);
-        String collection = sourceConfig.getString(MongoSourceConfig.COLLECTION_CONFIG);
-
-        Optional<List<Document>> pipeline = sourceConfig.getPipeline();
-        ChangeStreamIterable<Document> changeStream;
-        if (database.isEmpty()) {
-            changeStream = pipeline.map(mongoClient::watch).orElse(mongoClient.watch());
-        } else if (collection.isEmpty()) {
-            MongoDatabase db = mongoClient.getDatabase(database);
-            changeStream = pipeline.map(db::watch).orElse(db.watch());
-        } else {
-            MongoCollection<Document> coll = mongoClient.getDatabase(database).getCollection(collection);
-            changeStream = pipeline.map(coll::watch).orElse(coll.watch());
+        if (credential == null) {
+            return;
         }
 
-        try (MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor = changeStream.cursor()) {
-            cursor.tryNext();
-        } catch (Exception e) {
-            getConfigByName(config, MongoSourceConfig.CONNECTION_URI_CONFIG).ifPresent(c ->
-                    c.addErrorMessage(format("Unable to create a change stream cursor: %s ", e.getMessage()))
+        try {
+            Document usersInfo = mongoClient.getDatabase(credential.getSource())
+                    .runCommand(Document.parse(format("{usersInfo: '%s', showPrivileges: 1}", credential.getUserName())));
+
+            List<String> unsupportedUserActions = new ArrayList<>(actions);
+            for (final Document userInfo : usersInfo.getList("users", Document.class)) {
+                unsupportedUserActions = removeUserActions(userInfo, databaseName, collectionName, actions);
+                if (!unsupportedUserActions.isEmpty() && userInfo.getList("inheritedPrivileges", Document.class).isEmpty()) {
+                    for (final Document inheritedRole : userInfo.getList("inheritedRoles", Document.class)) {
+                        String roleDB = inheritedRole.getString("db");
+                        String roleName = inheritedRole.getString("role");
+                        Document rolesInfo = mongoClient.getDatabase(roleDB)
+                                .runCommand(Document.parse(format("{rolesInfo: '%s', showPrivileges: 1, showBuiltinRoles: 1}", roleName)));
+                        for (final Document roleInfo : rolesInfo.getList("roles", Document.class)) {
+                            unsupportedUserActions = removeUserActions(roleInfo, databaseName, collectionName, unsupportedUserActions);
+                        }
+
+                        if (unsupportedUserActions.isEmpty()) {
+                            return;
+                        }
+                    }
+                }
+                if (unsupportedUserActions.isEmpty()) {
+                    return;
+                }
+            }
+
+            String missingPermissions = String.join(", ", unsupportedUserActions);
+            getConfigByName(config, configName).ifPresent(c ->
+                    c.addErrorMessage(format("Invalid user permissions. Missing the following action permissions: %s", missingPermissions))
             );
+        } catch (MongoSecurityException e) {
+            getConfigByName(config, configName).ifPresent(c ->
+                    c.addErrorMessage(format("Invalid user permissions authentication failed."))
+            );
+        } catch (Exception e) {
+            LOGGER.warn("Permission validation failed due to: {}", e.getMessage(), e);
         }
     }
 
-    public static void validateHasReadWritePermissions(final MongoClient mongoClient, final MongoSinkConfig sinkConfig,
-                                                       final Config config) {
-        for (final String topic : sinkConfig.getTopics()) {
-            MongoSinkTopicConfig mongoSinkTopicConfig = sinkConfig.getMongoSinkTopicConfig(topic);
-            MongoNamespace namespace = mongoSinkTopicConfig.getNamespace();
+    private static List<String> removeUserActions(final Document rolesInfo, final String databaseName, final String collectionName,
+                                          final List<String> userActions) {
+        List<Document> privileges = rolesInfo.getList("inheritedPrivileges", Document.class);
+        if (privileges.isEmpty() || userActions.isEmpty()) {
+            return userActions;
+        }
 
-            boolean hasReadWritePermissions = false;
-            try {
-                hasReadWritePermissions = !mongoClient.getDatabase(namespace.getDatabaseName())
-                        .runCommand(BsonDocument.parse(format("{rolesInfo: {role: 'readWrite', db: '%s' }}", namespace.getDatabaseName())),
-                                BsonDocument.class)
-                        .getArray("roles", new BsonArray())
-                        .isEmpty();
-            } catch (MongoCommandException e) {
-                if (e.getErrorCode() == 13) {
-                    // Not Authorized to run rolesInfo command.
-                    hasReadWritePermissions = true; // We can't check as the user doesn't have the perms
-                } else if (e.getErrorCode() == 8000 && e.getErrorMessage().contains("user is not allowed to do action")) {
-                    // Not Authorized on Atlas to run the command
-                    hasReadWritePermissions = true; // We can't check as the user doesn't have the perms
-                }
-            } catch (Exception e) {
-                // Ignore any security or other exceptions
+        List<String> unsupportedUserActions = new ArrayList<>(userActions);
+        for (final Document privilege : privileges) {
+            Document resource = privilege.get("resource", Document.class);
+            String database = resource.getString("db");
+            String collection = resource.getString("collection");
+
+            if (database.isEmpty() || (database.equals(databaseName) && collection.isEmpty())
+                    || (database.equals(databaseName) && collection.equals(collectionName))) {
+                unsupportedUserActions.removeAll(privilege.getList("actions", String.class));
             }
-            if (!hasReadWritePermissions){
-                getConfigByName(config, MongoSinkConfig.CONNECTION_URI_CONFIG).ifPresent(c ->
-                    c.addErrorMessage(format("Invalid user permissions cannot write to: %s", namespace.getFullName()))
-                );
+
+            if (unsupportedUserActions.isEmpty()) {
                 break;
             }
         }
+
+        return unsupportedUserActions;
     }
 
     private static Optional<ConfigValue> getConfigByName(final Config config, final String name) {
