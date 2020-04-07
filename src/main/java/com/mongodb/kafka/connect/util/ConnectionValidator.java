@@ -16,8 +16,10 @@
 package com.mongodb.kafka.connect.util;
 
 import static java.lang.String.format;
+import static java.util.Collections.emptyList;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -109,14 +111,15 @@ public final class ConnectionValidator {
 
             List<String> unsupportedUserActions = new ArrayList<>(actions);
             for (final Document userInfo : usersInfo.getList("users", Document.class)) {
+
                 unsupportedUserActions = removeUserActions(userInfo, databaseName, collectionName, actions);
-                if (!unsupportedUserActions.isEmpty() && userInfo.getList("inheritedPrivileges", Document.class).isEmpty()) {
-                    for (final Document inheritedRole : userInfo.getList("inheritedRoles", Document.class)) {
+                if (!unsupportedUserActions.isEmpty() && userInfo.getList("inheritedPrivileges", Document.class, emptyList()).isEmpty()) {
+                    for (final Document inheritedRole : userInfo.getList("inheritedRoles", Document.class, emptyList())) {
                         String roleDB = inheritedRole.getString("db");
                         String roleName = inheritedRole.getString("role");
                         Document rolesInfo = mongoClient.getDatabase(roleDB)
                                 .runCommand(Document.parse(format("{rolesInfo: '%s', showPrivileges: 1, showBuiltinRoles: 1}", roleName)));
-                        for (final Document roleInfo : rolesInfo.getList("roles", Document.class)) {
+                        for (final Document roleInfo : rolesInfo.getList("roles", Document.class, emptyList())) {
                             unsupportedUserActions = removeUserActions(roleInfo, databaseName, collectionName, unsupportedUserActions);
                         }
 
@@ -135,8 +138,7 @@ public final class ConnectionValidator {
                     c.addErrorMessage(format("Invalid user permissions. Missing the following action permissions: %s", missingPermissions))
             );
         } catch (MongoSecurityException e) {
-            getConfigByName(config, configName).ifPresent(c ->
-                    c.addErrorMessage(format("Invalid user permissions authentication failed."))
+            getConfigByName(config, configName).ifPresent(c -> c.addErrorMessage("Invalid user permissions authentication failed.")
             );
         } catch (Exception e) {
             LOGGER.warn("Permission validation failed due to: {}", e.getMessage(), e);
@@ -145,20 +147,24 @@ public final class ConnectionValidator {
 
     private static List<String> removeUserActions(final Document rolesInfo, final String databaseName, final String collectionName,
                                           final List<String> userActions) {
-        List<Document> privileges = rolesInfo.getList("inheritedPrivileges", Document.class);
+        List<Document> privileges = rolesInfo.getList("inheritedPrivileges", Document.class, emptyList());
         if (privileges.isEmpty() || userActions.isEmpty()) {
             return userActions;
         }
 
         List<String> unsupportedUserActions = new ArrayList<>(userActions);
         for (final Document privilege : privileges) {
-            Document resource = privilege.get("resource", Document.class);
-            String database = resource.getString("db");
-            String collection = resource.getString("collection");
+            Document resource = privilege.get("resource", new Document());
+            if (resource.containsKey("cluster") && resource.getBoolean("cluster")) {
+                unsupportedUserActions.removeAll(privilege.getList("actions", String.class, emptyList()));
+            } else if (resource.containsKey("db") && resource.containsKey("collection")) {
+                String database = resource.getString("db");
+                String collection = resource.getString("collection");
 
-            if (database.isEmpty() || (database.equals(databaseName) && collection.isEmpty())
-                    || (database.equals(databaseName) && collection.equals(collectionName))) {
-                unsupportedUserActions.removeAll(privilege.getList("actions", String.class));
+                if (database.isEmpty() || (database.equals(databaseName) && collection.isEmpty())
+                        || (database.equals(databaseName) && collection.equals(collectionName))) {
+                    unsupportedUserActions.removeAll(privilege.getList("actions", String.class, emptyList()));
+                }
             }
 
             if (unsupportedUserActions.isEmpty()) {
