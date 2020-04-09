@@ -58,13 +58,18 @@ public class MongoSourceConnector extends SourceConnector {
 
         validateCanConnect(config, MongoSourceConfig.CONNECTION_URI_CONFIG)
                 .ifPresent(client -> {
-                    validateUserHasActions(client,
-                            sourceConfig.getConnectionString().getCredential(),
-                            REQUIRED_SOURCE_ACTIONS,
-                            sourceConfig.getString(MongoSourceConfig.DATABASE_CONFIG),
-                            sourceConfig.getString(MongoSourceConfig.COLLECTION_CONFIG),
-                            MongoSourceConfig.CONNECTION_URI_CONFIG, config);
-                    client.close();
+                    try {
+                        validateUserHasActions(client,
+                                sourceConfig.getConnectionString().getCredential(),
+                                REQUIRED_SOURCE_ACTIONS,
+                                sourceConfig.getString(MongoSourceConfig.DATABASE_CONFIG),
+                                sourceConfig.getString(MongoSourceConfig.COLLECTION_CONFIG),
+                                MongoSourceConfig.CONNECTION_URI_CONFIG, config);
+                    } catch (Exception e) {
+                        // Ignore
+                    } finally {
+                        client.close();
+                    }
                 });
 
         return config;

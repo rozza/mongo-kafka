@@ -82,17 +82,22 @@ public class MongoSinkConnector extends SinkConnector {
 
         validateCanConnect(config, MongoSinkConfig.CONNECTION_URI_CONFIG)
                 .ifPresent(client -> {
-                           sinkConfig.getTopics().forEach(topic -> {
-                               MongoSinkTopicConfig mongoSinkTopicConfig = sinkConfig.getMongoSinkTopicConfig(topic);
-                               validateUserHasActions(client,
-                                       sinkConfig.getConnectionString().getCredential(),
-                                       REQUIRED_SINK_ACTIONS,
-                                       mongoSinkTopicConfig.getString(MongoSourceConfig.DATABASE_CONFIG),
-                                       mongoSinkTopicConfig.getString(MongoSourceConfig.COLLECTION_CONFIG),
-                                       MongoSourceConfig.CONNECTION_URI_CONFIG, config);
+                    try {
+                        sinkConfig.getTopics().forEach(topic -> {
+                            MongoSinkTopicConfig mongoSinkTopicConfig = sinkConfig.getMongoSinkTopicConfig(topic);
+                            validateUserHasActions(client,
+                                    sinkConfig.getConnectionString().getCredential(),
+                                    REQUIRED_SINK_ACTIONS,
+                                    mongoSinkTopicConfig.getString(MongoSourceConfig.DATABASE_CONFIG),
+                                    mongoSinkTopicConfig.getString(MongoSourceConfig.COLLECTION_CONFIG),
+                                    MongoSourceConfig.CONNECTION_URI_CONFIG, config);
 
-                            });
-                    client.close();
+                        });
+                    } catch (Exception e) {
+                        // Ignore
+                    } finally {
+                        client.close();
+                    }
                 });
 
         return config;
