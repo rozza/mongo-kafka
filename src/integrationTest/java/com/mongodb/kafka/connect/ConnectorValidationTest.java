@@ -93,25 +93,6 @@ public final class ConnectorValidationTest {
     }
 
     @Test
-    @DisplayName("Ensure source configuration validation works")
-    void testSourceConfigValidation() {
-        assertValidSource(createSourceProperties());
-    }
-
-    @Test
-    @DisplayName("Ensure source configuration validation handles invalid connections")
-    void testSourceConfigValidationInvalidConnection() {
-        assertInvalidSource(createSourceProperties("mongodb://192.0.2.0:27017/?connectTimeoutMS=1000"));
-    }
-
-    @Test
-    @DisplayName("Ensure source configuration validation handles invalid user")
-    void testSourceConfigValidationInvalidUser() {
-        assertInvalidSource(createSourceProperties(format("mongodb://fakeUser:fakePass@%s/",
-                String.join(",", getConnectionString().getHosts()))));
-    }
-
-    @Test
     @DisplayName("Ensure sink validation fails with read user")
     void testSinkConfigValidationReadUser() {
         assumeTrue(isAuthEnabled());
@@ -120,16 +101,16 @@ public final class ConnectorValidationTest {
     }
 
     @Test
-    @DisplayName("Ensure sink validation passes with readWriteAnyDatabase user")
-    void testSinkConfigValidationReadWriteAnyDatabaseUser() {
+    @DisplayName("Ensure sink validation passes with readWrite user")
+    void testSinkConfigValidationReadWriteUser() {
         assumeTrue(isAuthEnabled());
         createUser("readWrite");
         assertValidSink(createSinkProperties(getConnectionStringForCustomUser()));
     }
 
     @Test
-    @DisplayName("Ensure sink validation passes with readWriteAnyDatabase user on specific db")
-    void testSinkConfigValidationReadWriteAnyDatabaseUserOnSpecificDatabase() {
+    @DisplayName("Ensure sink validation passes with readWrite user on specific db")
+    void testSinkConfigValidationReadWriteOnSpecificDatabase() {
         assumeTrue(isAuthEnabled());
         createUserFromDocument(format("{ role: 'readWrite', db: '%s'}", CUSTOM_DATABASE));
 
@@ -173,7 +154,6 @@ public final class ConnectorValidationTest {
                         format("{resource: {db: '%s', collection: '%s'}, ", CUSTOM_DATABASE, CUSTOM_COLLECTION)
                                 + "actions: ['find', 'insert', 'remove', 'update'] }"), emptyList());
 
-
         Map<String, String> properties = createSinkProperties(getConnectionStringForCustomUser(CUSTOM_DATABASE));
 
         // Different database than has permissions for
@@ -183,10 +163,30 @@ public final class ConnectorValidationTest {
         properties.put(MongoSinkTopicConfig.DATABASE_CONFIG, CUSTOM_DATABASE);
         assertInvalidSink(properties);
 
-        // Different collection than has permissions for
+        // Same collection than has permissions for
         properties.put(MongoSinkTopicConfig.COLLECTION_CONFIG, CUSTOM_COLLECTION);
         assertValidSink(properties);
     }
+
+    @Test
+    @DisplayName("Ensure source configuration validation works")
+    void testSourceConfigValidation() {
+        assertValidSource(createSourceProperties());
+    }
+
+    @Test
+    @DisplayName("Ensure source configuration validation handles invalid connections")
+    void testSourceConfigValidationInvalidConnection() {
+        assertInvalidSource(createSourceProperties("mongodb://192.0.2.0:27017/?connectTimeoutMS=1000"));
+    }
+
+    @Test
+    @DisplayName("Ensure source configuration validation handles invalid user")
+    void testSourceConfigValidationInvalidUser() {
+        assertInvalidSource(createSourceProperties(format("mongodb://fakeUser:fakePass@%s/",
+                String.join(",", getConnectionString().getHosts()))));
+    }
+
     @Test
     @DisplayName("Ensure source validation passes with read user")
     void testSourceConfigValidationReadUser() {
@@ -196,10 +196,10 @@ public final class ConnectorValidationTest {
     }
 
     @Test
-    @DisplayName("Ensure source validation passes with readWriteAnyDatabase user on specific db")
-    void testSourceConfigValidationReadWriteAnyDatabaseUserOnSpecificDatabase() {
+    @DisplayName("Ensure source validation passes with read user on specific db")
+    void testSourceConfigValidationReadUserOnSpecificDatabase() {
         assumeTrue(isAuthEnabled());
-        createUserFromDocument(format("{ role: 'readWrite', db: '%s' }", CUSTOM_DATABASE));
+        createUserFromDocument(format("{ role: 'read', db: '%s' }", CUSTOM_DATABASE));
 
         Map<String, String> properties = createSourceProperties(getConnectionStringForCustomUser());
 
@@ -227,11 +227,12 @@ public final class ConnectorValidationTest {
         properties.put(MongoSourceConfig.DATABASE_CONFIG, CUSTOM_DATABASE);
         assertInvalidSource(properties);
 
-        // Different collection than has permissions for
+        // Same collection than has permissions for
         properties.put(MongoSourceConfig.COLLECTION_CONFIG, CUSTOM_COLLECTION);
         assertValidSource(properties);
     }
 
+    // Helper methods
     private void assertInvalidSource(final Map<String, String> properties) {
         Config config = new MongoSourceConnector().validate(properties);
         List<String> errorMessages = getConfigValue(config, MongoSourceConfig.CONNECTION_URI_CONFIG).errorMessages();
