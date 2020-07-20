@@ -119,7 +119,7 @@ public class MongoSourceTask extends SourceTask {
   private BsonDocument cachedResult;
   private BsonDocument cachedResumeToken;
 
-  private MongoCursor<BsonDocument> cursor;
+  private MongoCursor<? extends BsonDocument> cursor;
 
   public MongoSourceTask() {
     this(new SystemTime());
@@ -255,13 +255,13 @@ public class MongoSourceTask extends SourceTask {
     invalidatedCursor = false;
   }
 
-  MongoCursor<BsonDocument> createCursor(
+  MongoCursor<? extends BsonDocument> createCursor(
       final MongoSourceConfig sourceConfig, final MongoClient mongoClient) {
     LOGGER.debug("Creating a MongoCursor");
     return tryCreateCursor(sourceConfig, mongoClient, getResumeToken(sourceConfig));
   }
 
-  private MongoCursor<BsonDocument> tryCreateCursor(
+  private MongoCursor<? extends BsonDocument> tryCreateCursor(
       final MongoSourceConfig sourceConfig,
       final MongoClient mongoClient,
       final BsonDocument resumeToken) {

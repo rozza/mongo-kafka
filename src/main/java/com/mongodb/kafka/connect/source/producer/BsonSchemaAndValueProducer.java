@@ -16,12 +16,15 @@
 
 package com.mongodb.kafka.connect.source.producer;
 
+import java.nio.ByteBuffer;
+
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 
 import org.bson.BsonBinaryWriter;
 import org.bson.BsonDocument;
 import org.bson.BsonValue;
+import org.bson.RawBsonDocument;
 import org.bson.codecs.BsonValueCodec;
 import org.bson.codecs.Codec;
 import org.bson.codecs.EncoderContext;
@@ -39,10 +42,19 @@ class BsonSchemaAndValueProducer implements SchemaAndValueProducer {
   }
 
   private byte[] documentToByteBuffer(final BsonDocument document) {
-    BasicOutputBuffer buffer = new BasicOutputBuffer();
-    try (BsonBinaryWriter writer = new BsonBinaryWriter(buffer)) {
-      BSON_VALUE_CODEC.encode(writer, document, EncoderContext.builder().build());
+    if (document instanceof RawBsonDocument) {
+      RawBsonDocument rawBsonDocument = (RawBsonDocument) document;
+      ByteBuffer byteBuffer = rawBsonDocument.getByteBuffer().asNIO();
+      byte[] byteArray = new byte[byteBuffer.limit()];
+      System.arraycopy(
+          rawBsonDocument.getByteBuffer().array(), 0, byteArray, 0, byteBuffer.limit());
+      return byteArray;
+    } else {
+      BasicOutputBuffer buffer = new BasicOutputBuffer();
+      try (BsonBinaryWriter writer = new BsonBinaryWriter(buffer)) {
+        BSON_VALUE_CODEC.encode(writer, document, EncoderContext.builder().build());
+      }
+      return buffer.toByteArray();
     }
-    return buffer.toByteArray(); // Use a copied truncated byte[] value
   }
 }
