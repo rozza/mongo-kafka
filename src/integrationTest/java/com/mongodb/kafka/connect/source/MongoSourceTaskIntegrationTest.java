@@ -575,9 +575,9 @@ public class MongoSourceTaskIntegrationTest extends MongoKafkaTestCase {
 
       task.start(cfg);
 
-      Document poisionPill = Document.parse("{_id: {a: 1, b: 2, c: 3}}");
+      Document poisonPill = Document.parse("{_id: {a: 1, b: 2, c: 3}}");
       insertMany(rangeClosed(1, 3), coll);
-      coll.insertOne(poisionPill);
+      coll.insertOne(poisonPill);
       insertMany(rangeClosed(4, 5), coll);
 
       Schema objectSchema = SchemaBuilder.struct().field("_id", Schema.INT32_SCHEMA).build();
@@ -639,9 +639,9 @@ public class MongoSourceTaskIntegrationTest extends MongoKafkaTestCase {
 
       task.start(cfg);
 
-      Document poisionPill = Document.parse("{_id: {a: 1, b: 2, c: 3}}");
+      Document poisonPill = Document.parse("{_id: {a: 1, b: 2, c: 3}}");
       insertMany(rangeClosed(1, 3), coll);
-      coll.insertOne(poisionPill);
+      coll.insertOne(poisonPill);
       insertMany(rangeClosed(4, 5), coll);
 
       Exception e = assertThrows(DataException.class, () -> getNextResults(task));
