@@ -20,7 +20,7 @@ package com.mongodb.kafka.connect.sink.cdc.mongodb.operations;
 
 import static com.mongodb.kafka.connect.sink.cdc.mongodb.operations.OperationHelper.getDocumentKey;
 import static com.mongodb.kafka.connect.sink.cdc.mongodb.operations.OperationHelper.getFullDocument;
-import static com.mongodb.kafka.connect.sink.cdc.mongodb.operations.OperationHelper.getUpdateDocument;
+import static com.mongodb.kafka.connect.sink.cdc.mongodb.operations.OperationHelper.getUpdateOneModel;
 import static com.mongodb.kafka.connect.sink.cdc.mongodb.operations.OperationHelper.hasFullDocument;
 
 import org.apache.kafka.connect.errors.DataException;
@@ -30,7 +30,6 @@ import org.slf4j.LoggerFactory;
 import org.bson.BsonDocument;
 
 import com.mongodb.client.model.ReplaceOneModel;
-import com.mongodb.client.model.UpdateOneModel;
 import com.mongodb.client.model.WriteModel;
 
 import com.mongodb.kafka.connect.sink.cdc.CdcOperation;
@@ -54,6 +53,6 @@ public class Update implements CdcOperation {
     }
 
     LOGGER.debug("No full document field available, creating update operation.");
-    return new UpdateOneModel<>(documentKey, getUpdateDocument(changeStreamDocument));
+    return getUpdateOneModel(documentKey, changeStreamDocument);
   }
 }

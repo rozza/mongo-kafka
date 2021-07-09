@@ -153,7 +153,7 @@ public class ChangeStreamRoundTripTest extends MongoKafkaTestCase {
   void testPipelineBasedUpdatesCanBeRoundTripped() {
     // Port of scenarios from
     // mongo/jstests/change_streams/pipeline_style_updates_v2_oplog_entries.js
-    assumeTrue(isGreaterThanFourDotZero() && !isGreaterThanFourDotFour());
+    assumeTrue(isGreaterThanFourDotZero());
     MongoDatabase original = getDatabaseWithPostfix();
     MongoDatabase replicated = getDatabaseWithPostfix();
     MongoCollection<Document> coll1 = original.getCollection("coll1");
