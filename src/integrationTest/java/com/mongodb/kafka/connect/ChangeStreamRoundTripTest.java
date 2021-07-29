@@ -149,11 +149,68 @@ public class ChangeStreamRoundTripTest extends MongoKafkaTestCase {
   }
 
   @Test
-  @DisplayName("Ensure collection CRUD operations are replicated")
+  @DisplayName("Ensure pipeline based updates can be round tripped")
   void testPipelineBasedUpdatesCanBeRoundTripped() {
     // Port of scenarios from
     // mongo/jstests/change_streams/pipeline_style_updates_v2_oplog_entries.js
-    assumeTrue(isGreaterThanFourDotZero() && !isGreaterThanFourDotFour());
+    assumeTrue(isGreaterThanFourDotZero());
+    MongoDatabase original = getDatabaseWithPostfix();
+    MongoDatabase replicated = getDatabaseWithPostfix();
+    MongoCollection<Document> coll1 = original.getCollection("coll1");
+
+    addSourceConnector(getSourceProperties(original));
+    addSinkConnector(getSinkProperties(replicated, coll1));
+
+    String giantString = Stream.generate(() -> "*").limit(10).collect(Collectors.joining());
+    String mediumString = Stream.generate(() -> "*").limit(5).collect(Collectors.joining());
+    String smallString = Stream.generate(() -> "*").limit(2).collect(Collectors.joining());
+    Bson filter = eq("_id", 100);
+
+    // Testing pipeline-based update with $set
+    coll1.insertOne(
+        Document.parse(
+            "{\"_id\": 100, \"giantStr\": \"**********\", "
+                + "\"arr\": [{\"x\": 1, \"y\": \"**\"}, \"*****\"], "
+                + "arr_a\": [1, \"*****\"], \"arr_b\": [[1, \"**\"], \"*****\"], "
+                + "arr_c\": [[\"**\", 1, 2, 3], \"*****\"], \"obj\": {\"x\": {\"a\": 1, \"b\": 1, \"c\": [\"*****\", 1, 2, 3], \"str\": \"*****\"}}, \"a\": \"updated\", \"doc\": {\"a\": {\"0\": \"foo\"}}}"));
+
+    // Testing pipeline-based update with modifications to nested elements
+    coll1.insertOne(new Document());
+    coll1.updateOne(
+        filter,
+        singletonList(
+            Document.parse(
+                format(
+                    "{$replaceRoot: {"
+                        + "    newRoot: {"
+                        + "        _id: 100,"
+                        + "        'giantStr': '%s',"
+                        + "        'arr': [{'y': '%s'}, '%s'],"
+                        + "        'arr_a': [2, '%s'],"
+                        + "        'arr_b': [[2, '%s'], '%s'],"
+                        + "        'arr_c': [['%s'], '%s'],"
+                        + "        'obj': {'x': {'b': 2, 'c': ['%s'], 'str': '%s'}},"
+                        + "    }"
+                        + "}}",
+                    giantString,
+                    smallString,
+                    mediumString,
+                    mediumString,
+                    smallString,
+                    mediumString,
+                    smallString,
+                    mediumString,
+                    mediumString,
+                    mediumString))));
+    assertDatabase(original, replicated);
+  }
+
+  @Test
+  @DisplayName("Ensure pipeline based updates can be round tripped")
+  void testPipelineBasedUpdatesCanBeRoundTripped1() {
+    // Port of scenarios from
+    // mongo/jstests/change_streams/pipeline_style_updates_v2_oplog_entries.js
+    assumeTrue(isGreaterThanFourDotZero());
     MongoDatabase original = getDatabaseWithPostfix();
     MongoDatabase replicated = getDatabaseWithPostfix();
     MongoCollection<Document> coll1 = original.getCollection("coll1");
@@ -219,8 +276,8 @@ public class ChangeStreamRoundTripTest extends MongoKafkaTestCase {
                     "{$replaceRoot: {"
                         + "    newRoot: {"
                         + "      _id: 100,"
-                        + "          'giantStr': '%s',"
-                        + "          'arr': [{'x': 1, 'y': '%s'}, '%s'],"
+                        + "      'giantStr': '%s',"
+                        + "      'arr': [{'x': 1, 'y': '%s'}, '%s'],"
                         + "      'arr_a': [1, '%s'],"
                         + "      'arr_b': [[1, '%s'], '%s'],"
                         + "      'arr_c': [['%s', 1, 2, 3], '%s'],"
@@ -245,6 +302,8 @@ public class ChangeStreamRoundTripTest extends MongoKafkaTestCase {
                     + "'arr_b': true, 'arr_c': true, 'obj': true }}")));
 
     assertDatabase(original, replicated);
+
+    System.out.println(coll1.find(Document.parse("{_id: 100}")).first().toJson());
 
     // Testing pipeline-based update with modifications to nested elements
     coll1.insertOne(new Document());
